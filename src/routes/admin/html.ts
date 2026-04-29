@@ -175,28 +175,13 @@ export const adminHtml = `<!DOCTYPE html>
       background: rgba(12, 21, 31, 0.58);
       min-height: 32px;
     }
+    .models-header-policy-toggle[hidden] {
+      display: none;
+    }
     .models-header-policy-copy {
       min-width: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 0.1rem;
-    }
-    .models-header-policy-badge {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      border-radius: 999px;
-      border: 1px solid rgba(63, 96, 131, 0.72);
-      background: rgba(20, 33, 46, 0.9);
-      color: var(--text-secondary);
-      font-size: 0.66rem;
-      font-weight: 600;
-      line-height: 1;
-      padding: 0.16rem 0.42rem;
-      white-space: nowrap;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
     }
     .models-header-policy-title {
       color: var(--text-primary);
@@ -489,8 +474,7 @@ export const adminHtml = `<!DOCTYPE html>
       border-color: rgba(74, 219, 196, 0.88);
       background: rgba(29, 106, 95, 0.48);
     }
-    .model-premium-badge,
-    .model-card-state-badge {
+    .model-premium-badge {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -504,11 +488,6 @@ export const adminHtml = `<!DOCTYPE html>
       border: 1px solid rgba(212, 165, 59, 0.48);
       background: rgba(90, 67, 23, 0.34);
       color: #f3d179;
-    }
-    .model-card-state-badge {
-      border: 1px solid rgba(74, 219, 196, 0.4);
-      background: rgba(29, 106, 95, 0.24);
-      color: #b9f3ea;
     }
     .model-multiplier { font-weight: 600; font-size: 0.875rem; white-space: nowrap; cursor: text; user-select: none; }
     .model-multiplier.paid { color: #f3d179; }
@@ -1255,11 +1234,6 @@ export const adminHtml = `<!DOCTYPE html>
       background: rgba(20, 33, 46, 0.52);
       font-size: 0.76rem;
     }
-    .manual-warning {
-      border-color: rgba(239, 100, 100, 0.62);
-      background: rgba(116, 37, 37, 0.24);
-      color: #ffcccc;
-    }
     .manual-doc a {
       color: var(--text-primary);
       font-weight: 500;
@@ -1403,9 +1377,8 @@ export const adminHtml = `<!DOCTYPE html>
         <div class="card-header models-card-header">
           <span class="card-title" data-i18n="models.availableModels">Available Models</span>
           <div class="models-header-actions">
-            <label class="models-header-policy-toggle" for="disableHiddenModelsToggle">
+            <label class="models-header-policy-toggle" id="disableHiddenModelsControl" for="disableHiddenModelsToggle" hidden>
               <span class="models-header-policy-copy">
-                <span class="models-header-policy-badge" data-i18n="models.hiddenPolicyBadge">Global</span>
                 <span class="models-header-policy-title" data-i18n="models.disableHiddenModels">Hidden models are disabled</span>
               </span>
               <span class="settings-switch">
@@ -1605,8 +1578,6 @@ export const adminHtml = `<!DOCTYPE html>
         </div>
         <!-- MANUAL_CONTENT_START: Keep all user manual sections inside this block -->
         <div class="manual-doc">
-          <section class="manual-warning manual-note" data-i18n-html="manual.publicAdminNoteHtml"><strong>重点：</strong>公网访问 admin 页面时，后台登录依赖内置的管理密钥登录；Caddy 仅保留 TLS / 反代职责。<code>/admin*</code> 走后台页面，其余路径按需要单独反代或限制。</section>
-
           <section class="manual-section" data-i18n-html="manual.section2Html">
             <div class="manual-section-title">1. 每个端点可用模型</div>
             <div class="manual-table-wrap">

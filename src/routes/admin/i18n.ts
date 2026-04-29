@@ -62,9 +62,7 @@ export const adminMessages: Record<AdminLocale, Record<string, string>> = {
     "models.show": "Show",
     "models.filterVisible": "Visible",
     "models.filterHidden": "Hidden",
-    "models.hiddenPolicyBadge": "Global",
     "models.disableHiddenModels": "Hidden models are disabled",
-    "models.hiddenDisabled": "Disabled",
     "models.noVisibleModels": "No visible models",
     "models.noHiddenModels": "No hidden models",
     "models.failedSaveVisibility": "Failed to update model visibility",
@@ -264,8 +262,6 @@ export const adminMessages: Record<AdminLocale, Record<string, string>> = {
     // MANUAL_I18N_START
     "manual.title": "User Manual",
     "manual.subtitle": "Endpoint mapping + cross-project integration",
-    "manual.publicAdminNoteHtml":
-      "<strong>Key:</strong> If public access to the admin page is needed, use Caddy reverse proxy and configure basic auth in Caddy; route <code>/admin*</code> to admin pages; for other paths, either reverse proxy directly to copilot-api for API usage, or only allow admin-path access and use endpoints through other projects.",
     "manual.section2Html": `<div class="manual-section-title">1. Available models by endpoint</div>
 <div class="manual-table-wrap">
   <table class="manual-table">
@@ -368,9 +364,7 @@ export const adminMessages: Record<AdminLocale, Record<string, string>> = {
     "models.show": "显示",
     "models.filterVisible": "可见",
     "models.filterHidden": "隐藏",
-    "models.hiddenPolicyBadge": "全局",
     "models.disableHiddenModels": "隐藏模型禁用",
-    "models.hiddenDisabled": "已禁用",
     "models.noVisibleModels": "暂无可见模型",
     "models.noHiddenModels": "暂无隐藏模型",
     "models.failedSaveVisibility": "更新模型显隐失败",
@@ -557,8 +551,6 @@ export const adminMessages: Record<AdminLocale, Record<string, string>> = {
     // MANUAL_I18N_START
     "manual.title": "使用手册",
     "manual.subtitle": "端点映射 + 跨项目接入",
-    "manual.publicAdminNoteHtml":
-      "<strong>重点：</strong>如果需要公网访问 admin 页面，可通过 Caddy 反代并在其配置中添加账号密码；<code>/admin*</code> 走后台页面；其余路径直接反代到 copilot-api 服务进行使用，或者只允许 admin 路径访问，端点结合其他项目使用。",
     "manual.section2Html": `<div class="manual-section-title">1. 每个端点可用模型</div>
 <div class="manual-table-wrap">
   <table class="manual-table">

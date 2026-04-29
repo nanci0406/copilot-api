@@ -142,7 +142,7 @@ docker compose up -d
 docker compose logs -f
 ```
 
-Then visit **http://localhost:4141/admin**. On first run, you will be redirected to `/admin/setup` to create the Admin management secret. After that, sign in from `/admin/login` and add your GitHub account.
+Then visit **http://localhost:4141/admin**. On first run, you will be redirected to `/admin/setup` to create the Admin management secret. That setup route is localhost-only until a secret exists. After setup, sign in from `/admin/login` and add your GitHub account.
 
 ### Using Docker Run
 
@@ -159,13 +159,15 @@ docker run -d \
 
 1. Start the server using Docker
 2. Open [http://localhost:4141/admin](http://localhost:4141/admin) in your browser
-3. If this is the first run and no Admin secret is configured yet, complete the one-time setup at `/admin/setup`
-4. Sign in with the Admin management secret
+3. If this is the first run and no Admin secret is configured yet, complete the one-time setup at `/admin/setup` from localhost
+4. Sign in from `/admin/login` with the Admin management secret
 5. Click "Add Account" to start the GitHub OAuth device flow
 6. Enter the code shown on GitHub's device authorization page
 7. Your account will be automatically configured once authorized
 
-The admin panel includes five tabs: `Accounts`, `Models`, `Usage`, `Model Mappings`, and `Settings`.
+The admin panel includes six tabs: `Accounts`, `Settings`, `Models`, `Usage`, `Model Mappings`, and `Manual`.
+
+When no Admin secret exists yet, only localhost can access `/admin/setup`. After a secret is configured, non-localhost Admin access requires HTTPS.
 
 ## Admin UI Capabilities
 
@@ -220,6 +222,11 @@ The admin panel includes five tabs: `Accounts`, `Models`, `Usage`, `Model Mappin
 - Includes a button to clear the current active account's local Usage log list. Historical month logs are also cleaned automatically on the first new write after the 1st of each month.
 
 ![Settings page](docs/images/编辑设置.png)
+
+### Manual
+- Includes an in-app compatibility table for `chat/completions`, `responses`, `messages`, and `gemini`.
+- Summarizes the recommended endpoint grouping for tools such as GPT-Load or New API.
+- Serves as the current quick reference for cross-project integration from the Admin UI.
 
 ## Environment Variables
 
@@ -291,7 +298,7 @@ Note: Gemini ingress is currently chat-only and text-input focused (`contents.pa
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/admin` | `GET` | Account management Web UI (protected by Admin secret login; first-time setup uses `/admin/setup`) |
+| `/admin` | `GET` | Account management Web UI (protected by Admin secret login; first-time setup uses localhost-only `/admin/setup`) |
 | `/usage` | `GET` | Copilot usage statistics and quota |
 | `/token` | `GET` | Current Copilot token |
 

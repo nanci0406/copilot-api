@@ -260,7 +260,12 @@ export const adminScript = `<script>
 
       const icon = document.getElementById('modelVisibilityToggleIcon');
       const text = document.getElementById('modelVisibilityToggleText');
+      const disableHiddenModelsControl = document.getElementById('disableHiddenModelsControl');
       const isHiddenView = modelVisibilityFilter === 'hidden';
+
+      if (disableHiddenModelsControl) {
+        disableHiddenModelsControl.hidden = !isHiddenView;
+      }
 
       if (icon) {
         icon.innerHTML = getModelVisibilityIconMarkup();
@@ -1575,10 +1580,6 @@ export const adminScript = `<script>
       return hiddenModels.has(modelId);
     }
 
-    function isModelEffectivelyDisabled(modelId) {
-      return disableHiddenModels && isModelHidden(modelId);
-    }
-
     function shouldDisplayModel(modelId) {
       return modelVisibilityFilter === 'hidden' ? isModelHidden(modelId) : !isModelHidden(modelId);
     }
@@ -1801,11 +1802,6 @@ export const adminScript = `<script>
           + '</select>'
           + '</label>'
         : '';
-      const hiddenDisabledBadgeMarkup = isModelEffectivelyDisabled(model.id)
-        ? '<span class="model-card-state-badge">' + escapeHtml(t('models.hiddenDisabled')) + '</span>'
-        : '';
-      const reasoningRightMarkup = hiddenDisabledBadgeMarkup + reasoningSelectorMarkup;
-
       return '<div class="model-card' + (isHiddenModel ? ' hidden-model' : '') + '">'
         + '<div class="model-top">'
         + '<div class="model-name" role="button" tabindex="0" data-model-id="' + encodedModelId + '" title="' + safeModelTitle + '" aria-label="' + safeCopyAriaLabel + '">' + safeModelId + '</div>'
@@ -1822,7 +1818,7 @@ export const adminScript = `<script>
         + '<span class="model-meta-value">' + safeFeaturesText + '</span>'
         + '</span>'
         + '<span class="model-meta-group model-meta-group-right">'
-        + reasoningRightMarkup
+        + reasoningSelectorMarkup
         + '<span class="model-meta-label">' + t('models.contextWindow') + '</span>'
         + '<span class="model-meta-value">' + safeContextWindowText + '</span>'
         + '</span>'
