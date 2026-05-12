@@ -1,3 +1,4 @@
+/* eslint-disable max-lines-per-function */
 import { afterAll, beforeEach, describe, expect, test } from "bun:test"
 import { Hono } from "hono"
 
@@ -112,7 +113,17 @@ describe("admin route protection", () => {
     })
 
     expect(pageResponse.status).toBe(200)
-    expect(await pageResponse.text()).toContain("Copilot API - Dashboard")
+    expect(await pageResponse.text()).toContain('id="app"')
+  })
+
+  test("keeps admin asset paths public on localhost before setup completes", async () => {
+    const app = createAdminApp()
+
+    const response = await app.request(
+      "http://localhost/admin/assets/missing-file.js",
+    )
+
+    expect(response.status).toBe(404)
   })
 
   test("requires admin login for protected routes once secret is configured", async () => {
@@ -161,6 +172,17 @@ describe("admin route protection", () => {
     )
     expect(settingsResponse.status).toBe(200)
 
+    const appPageResponse = await app.request(
+      "http://localhost/admin/accounts",
+      {
+        headers: {
+          cookie,
+        },
+      },
+    )
+    expect(appPageResponse.status).toBe(200)
+    expect(await appPageResponse.text()).toContain('id="app"')
+
     const loginPageResponse = await app.request(
       "http://localhost/admin/login",
       {
@@ -190,6 +212,47 @@ describe("admin route protection", () => {
     })
     expect(postLogoutResponse.status).toBe(302)
     expect(postLogoutResponse.headers.get("location")).toBe("/admin/login")
+  })
+
+  test("does not let the spa fallback swallow unknown admin api routes", async () => {
+    const app = createAdminApp()
+    const secretHash = await hashAdminSecret("api-not-found-secret")
+
+    await saveConfig({
+      ...mergeConfigWithDefaults(),
+      accounts: [],
+      activeAccountId: null,
+      adminAuth: {
+        ...mergeConfigWithDefaults().adminAuth,
+        secretHash,
+        sessionTtlDays: 5,
+        enforceHttps: true,
+      },
+    })
+
+    const loginResponse = await app.request(
+      "http://localhost/admin/api/session/login",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          secret: "api-not-found-secret",
+        }),
+      },
+    )
+
+    expect(loginResponse.status).toBe(200)
+    const cookie = getCookieHeader(loginResponse)
+
+    const response = await app.request("http://localhost/admin/api/missing", {
+      headers: {
+        cookie,
+      },
+    })
+
+    expect(response.status).toBe(404)
   })
 
   test("updates admin session ttl days from settings", async () => {

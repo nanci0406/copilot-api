@@ -2,6 +2,8 @@ FROM oven/bun:1.2.19-alpine AS builder
 WORKDIR /app
 
 COPY ./package.json ./bun.lock ./
+COPY ./packages/admin-contracts/package.json ./packages/admin-contracts/package.json
+COPY ./web/admin/package.json ./web/admin/package.json
 RUN bun install --frozen-lockfile
 
 COPY . .
@@ -14,6 +16,8 @@ WORKDIR /app
 RUN addgroup -S copilot && adduser -S copilot -G copilot
 
 COPY ./package.json ./bun.lock ./
+COPY ./packages/admin-contracts/package.json ./packages/admin-contracts/package.json
+COPY ./web/admin/package.json ./web/admin/package.json
 RUN bun install --frozen-lockfile --production --ignore-scripts --no-cache
 
 COPY --from=builder /app/dist ./dist

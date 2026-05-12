@@ -23,5 +23,15 @@
         "./src/*"
       ]
     }
-  }
+  },
+  "include": [
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "packages/**/*.ts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules",
+    "web"
+  ]
 }

@@ -38,6 +38,7 @@ function isPublicRoute(subPath: string): boolean {
     subPath === "/login"
     || subPath === "/api/session"
     || subPath === "/api/session/login"
+    || subPath.startsWith("/assets/")
   )
 }
 
@@ -171,6 +172,7 @@ function handleUnconfiguredAdminAccess(
     requestContext.subPath === "/setup"
     || requestContext.subPath === "/api/setup"
     || requestContext.subPath === "/api/session"
+    || requestContext.subPath.startsWith("/assets/")
 
   if (canAccessSetupRoute) {
     return null

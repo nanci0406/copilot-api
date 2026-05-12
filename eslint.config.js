@@ -9,7 +9,9 @@ export default [
       ".claude-plugin/**",
       "claude-plugin/**",
       "copilot-api/**",
+      "eslint.config.js",
       "plugins/**",
+      "tsdown.config.ts",
     ],
   },
 ]

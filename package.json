@@ -18,17 +18,28 @@
   "files": [
     "dist"
   ],
+  "workspaces": [
+    "packages/*",
+    "web/*"
+  ],
   "scripts": {
-    "build": "tsdown",
-    "dev": "bun run --watch ./src/main.ts",
+    "build": "bun run build:server && bun run build:admin",
+    "build:admin": "bun run --cwd web/admin build",
+    "build:server": "tsdown",
+    "dev": "bun run dev:server",
+    "dev:admin": "bun run --cwd web/admin dev",
     "dev:finalize": "bun run lint:fix && bun run lint",
+    "dev:server": "bun run --watch ./src/main.ts",
     "knip": "knip-bun",
     "lint": "eslint --cache",
     "lint:all": "eslint --cache .",
     "lint:fix": "eslint --fix ./src",
     "prepare": "simple-git-hooks",
     "start": "NODE_ENV=production bun run ./src/main.ts",
-    "typecheck": "tsc"
+    "test:admin-web": "bun run --cwd web/admin test",
+    "typecheck": "bun run typecheck:server && bun run typecheck:admin",
+    "typecheck:admin": "bun run --cwd web/admin typecheck",
+    "typecheck:server": "tsc"
   },
   "simple-git-hooks": {
     "pre-commit": "bun run dev:finalize && bunx lint-staged"
