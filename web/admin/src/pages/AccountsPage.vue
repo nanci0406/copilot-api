@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { AccountListItem, AccountType } from "@copilot-api/admin-contracts"
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query"
 import { computed, onBeforeUnmount, reactive, ref } from "vue"
 import { useI18n } from "vue-i18n"
@@ -36,10 +38,14 @@ const authBusy = ref(false)
 const authError = ref("")
 const authModalOpen = ref(false)
 const actionBusyId = ref("")
+const draggedAccountId = ref("")
+const dragTargetAccountId = ref("")
+const dragTargetPosition = ref<"after" | "before" | "">("")
 
 let pollTimer: number | null = null
 
 const accounts = computed(() => accountsQuery.data.value?.accounts ?? [])
+const canReorder = computed(() => accounts.value.length > 1)
 
 function clearPollTimer(): void {
   if (pollTimer !== null) {
@@ -158,33 +164,6 @@ const deleteMutation = useMutation({
   },
 })
 
-async function moveAccount(accountId: string, offset: -1 | 1): Promise<void> {
-  const currentIndex = accounts.value.findIndex((account) => account.id === accountId)
-  if (currentIndex < 0) {
-    return
-  }
-
-  const nextIndex = currentIndex + offset
-  if (nextIndex < 0 || nextIndex >= accounts.value.length) {
-    return
-  }
-
-  const nextOrder = accounts.value.map((account) => account.id)
-  const [moved] = nextOrder.splice(currentIndex, 1)
-  nextOrder.splice(nextIndex, 0, moved)
-
-  actionBusyId.value = `reorder:${accountId}`
-  try {
-    await reorderAccounts(nextOrder)
-    noticeStore.success(t("accounts.reorderSuccess"))
-    await refreshAll()
-  } catch (error) {
-    noticeStore.error(getErrorMessage(error, t("accounts.reorderFailed")))
-  } finally {
-    actionBusyId.value = ""
-  }
-}
-
 function resolveUsageLabel(status: {
   status: "error" | "ok"
   premiumPercent?: number
@@ -192,7 +171,7 @@ function resolveUsageLabel(status: {
   completionsPercent?: number
 }): string {
   if (status.status === "error") {
-    return "--"
+    return t("accounts.fetchFailed")
   }
 
   return [
@@ -208,6 +187,9 @@ function resolveUsagePercent(
     premiumPercent?: number
     chatPercent?: number
     completionsPercent?: number
+    chatUnlimited?: boolean
+    completionsUnlimited?: boolean
+    premiumUnlimited?: boolean
   },
   key: "chatPercent" | "completionsPercent" | "premiumPercent",
 ): number {
@@ -215,7 +197,130 @@ function resolveUsagePercent(
     return 0
   }
 
+  if (
+    (key === "chatPercent" && status.chatUnlimited) ||
+    (key === "completionsPercent" && status.completionsUnlimited) ||
+    (key === "premiumPercent" && status.premiumUnlimited)
+  ) {
+    return 100
+  }
+
   return status[key] ?? 0
+}
+
+function resolveUsageValue(
+  status: AccountListItem["usage"],
+  key: "chatPercent" | "completionsPercent" | "premiumPercent",
+): string {
+  if (status.status === "error") {
+    return t("accounts.fetchFailed")
+  }
+
+  if (
+    (key === "chatPercent" && status.chatUnlimited) ||
+    (key === "completionsPercent" && status.completionsUnlimited) ||
+    (key === "premiumPercent" && status.premiumUnlimited)
+  ) {
+    return "\u221e"
+  }
+
+  return formatPercent(status[key])
+}
+
+function formatAccountType(accountType: AccountType): string {
+  if (accountType === "business") {
+    return t("accounts.accountTypeBusiness")
+  }
+
+  if (accountType === "enterprise") {
+    return t("accounts.accountTypeEnterprise")
+  }
+
+  return t("accounts.accountTypeIndividual")
+}
+
+function hideBrokenAvatar(event: Event): void {
+  ;(event.target as HTMLImageElement).style.display = "none"
+}
+
+function clearDragState(): void {
+  draggedAccountId.value = ""
+  dragTargetAccountId.value = ""
+  dragTargetPosition.value = ""
+}
+
+function handleDragStart(event: DragEvent, account: AccountListItem): void {
+  if (!canReorder.value) {
+    event.preventDefault()
+    return
+  }
+
+  draggedAccountId.value = account.id
+  event.dataTransfer?.setData("text/plain", account.id)
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move"
+  }
+}
+
+function handleDragOver(event: DragEvent, account: AccountListItem): void {
+  if (!draggedAccountId.value || draggedAccountId.value === account.id) {
+    return
+  }
+
+  event.preventDefault()
+
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  dragTargetAccountId.value = account.id
+  dragTargetPosition.value =
+    event.clientY < rect.top + rect.height / 2 ? "before" : "after"
+}
+
+function hasOrderChanged(nextOrder: Array<string>): boolean {
+  return nextOrder.some((accountId, index) => accountId !== accounts.value[index]?.id)
+}
+
+async function handleDrop(event: DragEvent, targetAccount: AccountListItem): Promise<void> {
+  event.preventDefault()
+
+  const sourceAccountId =
+    draggedAccountId.value || event.dataTransfer?.getData("text/plain") || ""
+  const position = dragTargetPosition.value || "after"
+
+  if (!sourceAccountId || sourceAccountId === targetAccount.id) {
+    clearDragState()
+    return
+  }
+
+  const nextOrder = accounts.value
+    .map((account) => account.id)
+    .filter((accountId) => accountId !== sourceAccountId)
+  const targetIndex = nextOrder.indexOf(targetAccount.id)
+
+  if (targetIndex < 0) {
+    clearDragState()
+    return
+  }
+
+  nextOrder.splice(position === "before" ? targetIndex : targetIndex + 1, 0, sourceAccountId)
+
+  if (!hasOrderChanged(nextOrder)) {
+    clearDragState()
+    return
+  }
+
+  actionBusyId.value = `reorder:${sourceAccountId}`
+
+  try {
+    await reorderAccounts(nextOrder)
+    noticeStore.success(t("accounts.reorderSuccess"))
+    await refreshAll()
+  } catch (error) {
+    noticeStore.error(getErrorMessage(error, t("accounts.reorderFailed")))
+  } finally {
+    actionBusyId.value = ""
+    clearDragState()
+  }
 }
 
 onBeforeUnmount(() => {
@@ -224,24 +329,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="tab-content active">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">{{ t("accounts.githubAccounts") }}</span>
-        <div class="inline-actions">
+  <div id="tab-accounts" class="tab-content active">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">{{ t("accounts.githubAccounts") }}</span>
           <button type="button" class="btn btn-primary" @click="openAuthModal">
-            <span>+</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
+            </svg>
             <span>{{ t("accounts.addAccount") }}</span>
           </button>
-          <button
-            type="button"
-            class="btn"
-            :disabled="accountsQuery.isFetching.value"
-            @click="accountsQuery.refetch()"
-          >
-            {{ t("common.refresh") }}
-          </button>
-        </div>
       </div>
 
       <ul v-if="accountsQuery.isLoading.value" class="account-list">
@@ -252,20 +349,43 @@ onBeforeUnmount(() => {
       </ul>
       <ul v-else class="account-list">
         <li
-          v-for="(account, index) in accounts"
+          v-for="account in accounts"
           :key="account.id"
           class="account-item"
-          :class="{ active: account.isActive }"
+          :class="{
+            active: account.isActive,
+            'drag-source': draggedAccountId === account.id,
+            'drag-target-before': dragTargetAccountId === account.id && dragTargetPosition === 'before',
+            'drag-target-after': dragTargetAccountId === account.id && dragTargetPosition === 'after',
+          }"
+          :data-account-id="account.id"
+          @dragover="handleDragOver($event, account)"
+          @drop="handleDrop($event, account)"
+          @dragend="clearDragState"
         >
-          <div class="account-drag-handle" :class="{ disabled: accounts.length <= 1 }">
-            ::
+          <div
+            class="account-drag-handle"
+            :class="{
+              disabled: !canReorder,
+              dragging: draggedAccountId === account.id,
+            }"
+            :draggable="canReorder"
+            :title="canReorder ? t('accounts.dragToSort') : undefined"
+            :aria-label="canReorder ? t('accounts.dragToSort') : undefined"
+            @dragstart="handleDragStart($event, account)"
+          >
+            <img
+              class="account-avatar"
+              :src="account.avatarUrl"
+              alt=""
+              draggable="false"
+              @error="hideBrokenAvatar"
+            >
           </div>
-          <img class="account-avatar" :src="account.avatarUrl" :alt="account.login">
           <div class="account-info">
             <div class="account-name">{{ account.login }}</div>
             <div class="account-type">
-              {{ account.accountType }}
-              <span v-if="account.isActive"> · {{ t("common.active") }}</span>
+              {{ formatAccountType(account.accountType) }}
             </div>
           </div>
 
@@ -275,63 +395,54 @@ onBeforeUnmount(() => {
             </div>
             <div v-else class="account-usage-bars">
               <div class="account-usage-row">
-                <span class="account-usage-type">Premium</span>
+                <span class="account-usage-type">{{ t("accounts.metricPremium") }}</span>
                 <span class="account-usage-track">
                   <span
                     class="account-usage-fill premium"
                     :style="{ '--usage': resolveUsagePercent(account.usage, 'premiumPercent') }"
                   />
                 </span>
-                <span class="account-usage-value">{{ formatPercent(account.usage.premiumPercent) }}</span>
+                <span class="account-usage-value">{{ resolveUsageValue(account.usage, "premiumPercent") }}</span>
               </div>
               <div class="account-usage-row">
-                <span class="account-usage-type">Chat</span>
+                <span class="account-usage-type">{{ t("accounts.metricChat") }}</span>
                 <span class="account-usage-track">
                   <span
                     class="account-usage-fill chat"
                     :style="{ '--usage': resolveUsagePercent(account.usage, 'chatPercent') }"
                   />
                 </span>
-                <span class="account-usage-value">{{ formatPercent(account.usage.chatPercent) }}</span>
+                <span class="account-usage-value">{{ resolveUsageValue(account.usage, "chatPercent") }}</span>
               </div>
               <div class="account-usage-row">
-                <span class="account-usage-type">Completions</span>
+                <span class="account-usage-type">{{ t("accounts.metricCompletions") }}</span>
                 <span class="account-usage-track">
                   <span
                     class="account-usage-fill completions"
                     :style="{ '--usage': resolveUsagePercent(account.usage, 'completionsPercent') }"
                   />
                 </span>
-                <span class="account-usage-value">{{ formatPercent(account.usage.completionsPercent) }}</span>
+                <span class="account-usage-value">{{ resolveUsageValue(account.usage, "completionsPercent") }}</span>
               </div>
             </div>
           </div>
 
           <div class="account-actions">
             <button
+              v-if="account.isActive"
               type="button"
-              class="btn btn-sm"
-              :disabled="index === 0 || actionBusyId === `reorder:${account.id}`"
-              @click="moveAccount(account.id, -1)"
+              class="btn btn-primary btn-sm"
             >
-              {{ t("accounts.moveUp") }}
+              {{ t("accounts.active") }}
             </button>
             <button
-              type="button"
-              class="btn btn-sm"
-              :disabled="index === accounts.length - 1 || actionBusyId === `reorder:${account.id}`"
-              @click="moveAccount(account.id, 1)"
-            >
-              {{ t("accounts.moveDown") }}
-            </button>
-            <button
-              v-if="!account.isActive"
+              v-else
               type="button"
               class="btn btn-sm"
               :disabled="actionBusyId === `activate:${account.id}`"
               @click="activateMutation.mutate(account.id)"
             >
-              {{ t("accounts.activate") }}
+              {{ t("accounts.switch") }}
             </button>
             <button
               type="button"
@@ -339,7 +450,7 @@ onBeforeUnmount(() => {
               :disabled="actionBusyId === `delete:${account.id}`"
               @click="deleteMutation.mutate(account.id)"
             >
-              {{ t("accounts.remove") }}
+              {{ t("accounts.delete") }}
             </button>
           </div>
         </li>

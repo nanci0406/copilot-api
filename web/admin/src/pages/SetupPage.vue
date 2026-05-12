@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { useI18n } from "vue-i18n"
 import { useRouter } from "vue-router"
 
@@ -13,6 +13,7 @@ const noticeStore = useNoticeStore()
 const sessionStore = useSessionStore()
 
 const secret = ref("")
+const secretInput = ref<HTMLInputElement | null>(null)
 const confirmSecret = ref("")
 const loading = ref(false)
 const errorMessage = ref("")
@@ -24,6 +25,15 @@ const mode = computed(() => {
   }
 
   return status.secretManagedInApp ? "rotate" : "readonly"
+})
+
+onMounted(() => {
+  document.body.classList.add("auth-body")
+  secretInput.value?.focus()
+})
+
+onBeforeUnmount(() => {
+  document.body.classList.remove("auth-body")
 })
 
 async function submit(): Promise<void> {
@@ -63,8 +73,8 @@ async function submit(): Promise<void> {
           <div class="language-box">
             <label for="setupLanguageSelect">{{ t("common.language") }}</label>
             <select id="setupLanguageSelect" v-model="locale">
-              <option value="zh">简体中文</option>
               <option value="en">English</option>
+              <option value="zh">简体中文</option>
             </select>
           </div>
         </div>
@@ -99,6 +109,7 @@ async function submit(): Promise<void> {
             <span>{{ t("auth.secretLabel") }}</span>
             <input
               id="adminSecret"
+              ref="secretInput"
               v-model="secret"
               type="password"
               autocomplete="new-password"

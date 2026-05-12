@@ -32,6 +32,7 @@ const settingsQuery = useQuery({
 })
 
 const fromAlias = ref("")
+const formOpen = ref(false)
 const targetModel = ref("")
 
 const availableModels = computed(() => {
@@ -53,6 +54,7 @@ const saveMutation = useMutation({
   onSuccess: async () => {
     noticeStore.success(t("mappings.saveSuccess"))
     fromAlias.value = ""
+    formOpen.value = false
     targetModel.value = ""
     await queryClient.invalidateQueries({
       queryKey: adminQueryKeys.mappings,
@@ -101,50 +103,53 @@ async function removeMapping(from: string): Promise<void> {
     noticeStore.error(getErrorMessage(error, t("mappings.deleteFailed")))
   }
 }
+
+function openMappingForm(): void {
+  fromAlias.value = ""
+  targetModel.value = ""
+  formOpen.value = true
+}
 </script>
 
 <template>
-  <div class="tab-content active">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">{{ t("mappings.title") }}</span>
-        <button
-          type="button"
-          class="btn btn-primary btn-sm"
-          :disabled="!fromAlias.trim() || !targetModel.trim() || saveMutation.isPending.value"
-          @click="saveMutation.mutate()"
-        >
-          {{ t("common.save") }}
-        </button>
+  <div id="tab-model-mappings" class="tab-content active">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">{{ t("mappings.title") }}</span>
+          <button type="button" class="btn btn-primary btn-sm" @click="openMappingForm">
+            {{ t("mappings.add") }}
+          </button>
       </div>
 
-      <div class="mapping-form">
+      <div class="mapping-form" :class="{ active: formOpen }">
         <div class="mapping-form-row">
           <input
             v-model="fromAlias"
             class="select mapping-input-inline"
-            :placeholder="t('mappings.from')"
+            :placeholder="t('mappings.fromPlaceholder')"
           >
-          <span class="mapping-arrow">-&gt;</span>
+          <span class="mapping-arrow">→</span>
           <select v-model="targetModel" class="select mapping-input-inline">
             <option value="">{{ t("mappings.selectTarget") }}</option>
             <option v-for="model in availableModels" :key="model.id" :value="model.id">
               {{ model.id }}
             </option>
           </select>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            :disabled="!fromAlias.trim() || !targetModel.trim() || saveMutation.isPending.value"
+            @click="saveMutation.mutate()"
+          >
+            {{ t("common.save") }}
+          </button>
+          <button type="button" class="btn btn-sm" @click="formOpen = false">
+            {{ t("common.cancel") }}
+          </button>
         </div>
       </div>
 
-      <div v-if="mappingsQuery.isLoading.value" class="empty-state">
-        {{ t("common.loading") }}
-      </div>
-      <div
-        v-else-if="Object.keys(mappingsQuery.data.value?.modelMapping ?? {}).length === 0"
-        class="empty-state"
-      >
-        {{ t("mappings.empty") }}
-      </div>
-      <table v-else class="mapping-table">
+      <table class="mapping-table">
         <colgroup>
           <col class="mapping-col-from">
           <col class="mapping-col-to">
@@ -154,32 +159,40 @@ async function removeMapping(from: string): Promise<void> {
           <tr class="mapping-head">
             <th>{{ t("mappings.from") }}</th>
             <th>{{ t("mappings.to") }}</th>
-            <th>{{ t("mappings.actions") }}</th>
+            <th>{{ t("mappings.action") }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="[from, to] in Object.entries(mappingsQuery.data.value?.modelMapping ?? {})"
-            :key="from"
-            class="mapping-row"
-          >
-            <td class="mapping-cell">
-              <span class="mapping-model-pill mapping-model-from">{{ from }}</span>
-            </td>
-            <td class="mapping-cell mapping-cell-to">
-              <span class="mapping-model-pill mapping-model-to">{{ to }}</span>
-            </td>
-            <td class="mapping-cell mapping-cell-action">
-              <div class="mapping-action-group">
-                <button type="button" class="btn btn-sm" @click="copyMapping(from, to)">
-                  {{ t("mappings.copy") }}
-                </button>
-                <button type="button" class="btn btn-danger btn-sm" @click="removeMapping(from)">
-                  {{ t("common.delete") }}
-                </button>
-              </div>
-            </td>
+          <tr v-if="mappingsQuery.isLoading.value">
+            <td colspan="3" class="empty-state">{{ t("common.loading") }}</td>
           </tr>
+          <tr v-else-if="Object.keys(mappingsQuery.data.value?.modelMapping ?? {}).length === 0">
+            <td colspan="3" class="empty-state">{{ t("mappings.noMappings") }}</td>
+          </tr>
+          <template v-else>
+            <tr
+              v-for="[from, to] in Object.entries(mappingsQuery.data.value?.modelMapping ?? {})"
+              :key="from"
+              class="mapping-row"
+            >
+              <td class="mapping-cell">
+                <span class="mapping-model-pill mapping-model-from">{{ from }}</span>
+              </td>
+              <td class="mapping-cell mapping-cell-to">
+                <span class="mapping-model-pill mapping-model-to">{{ to }}</span>
+              </td>
+              <td class="mapping-cell mapping-cell-action">
+                <div class="mapping-action-group">
+                  <button type="button" class="btn btn-sm" @click="copyMapping(from, to)">
+                    {{ t("mappings.copy") }}
+                  </button>
+                  <button type="button" class="btn btn-danger btn-sm" @click="removeMapping(from)">
+                    {{ t("common.delete") }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>

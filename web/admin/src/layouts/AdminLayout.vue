@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { AccountType } from "@copilot-api/admin-contracts"
+
 import { useQuery } from "@tanstack/vue-query"
 import { storeToRefs } from "pinia"
 import { computed } from "vue"
@@ -36,6 +38,57 @@ const activeAccount = computed(() =>
   accountsQuery.data.value?.accounts.find((account) => account.isActive),
 )
 
+function formatAccountType(accountType: AccountType): string {
+  if (accountType === "business") {
+    return t("accounts.accountTypeBusiness")
+  }
+
+  if (accountType === "enterprise") {
+    return t("accounts.accountTypeEnterprise")
+  }
+
+  return t("accounts.accountTypeIndividual")
+}
+
+const sidebarStatus = computed(() => {
+  const account = activeAccount.value
+
+  if (accountsQuery.isError.value) {
+    return {
+      avatarFallback: "!",
+      avatarUrl: "",
+      connected: false,
+      login: t("status.connectionError"),
+      statusText: t("status.connectionError"),
+      type: t("status.checkLocalServer"),
+    }
+  }
+
+  if (!account) {
+    return {
+      avatarFallback: "!",
+      avatarUrl: "",
+      connected: false,
+      login: t("status.noActiveAccount"),
+      statusText: t("status.notConnected"),
+      type: t("status.connectAccount"),
+    }
+  }
+
+  const login = account.login || "?"
+
+  return {
+    avatarFallback: (login.slice(0, 1) || "?").toUpperCase(),
+    avatarUrl: account.avatarUrl,
+    connected: true,
+    login,
+    statusText: t("status.connected"),
+    type: t("status.accountLabel", {
+      type: formatAccountType(account.accountType),
+    }),
+  }
+})
+
 async function handleLogout(): Promise<void> {
   try {
     await sessionStore.logout()
@@ -55,29 +108,29 @@ async function handleLogout(): Promise<void> {
         <div class="sidebar-profile">
           <div class="sidebar-avatar-wrap">
             <img
-              v-if="activeAccount?.avatarUrl"
+              v-if="sidebarStatus.avatarUrl"
               class="sidebar-avatar"
-              :src="activeAccount.avatarUrl"
-              :alt="activeAccount.login"
+              :src="sidebarStatus.avatarUrl"
+              :alt="sidebarStatus.login"
               style="display: block;"
             >
             <div v-else class="sidebar-avatar-fallback">
-              {{ activeAccount?.login?.slice(0, 1).toUpperCase() || "?" }}
+              {{ sidebarStatus.avatarFallback }}
             </div>
           </div>
           <div class="sidebar-profile-text">
             <div class="sidebar-login">
-              {{ activeAccount?.login || t("status.noActiveAccount") }}
+              {{ sidebarStatus.login }}
             </div>
             <div class="sidebar-type">
-              {{ activeAccount?.accountType || t("status.connectAccount") }}
+              {{ sidebarStatus.type }}
             </div>
           </div>
         </div>
 
         <div class="status-bar">
-          <div class="status-dot" :class="{ online: sessionStore.authenticated }" />
-          <span>{{ sessionStore.authenticated ? t("status.online") : t("status.offline") }}</span>
+          <div class="status-dot" :class="{ online: sidebarStatus.connected }" />
+          <span>{{ sidebarStatus.statusText }}</span>
         </div>
 
         <div class="sidebar-language">
@@ -90,8 +143,8 @@ async function handleLogout(): Promise<void> {
             :value="locale"
             @change="preferencesStore.setLocale(($event.target as HTMLSelectElement).value as 'zh' | 'en')"
           >
-            <option value="zh">简体中文</option>
             <option value="en">English</option>
+            <option value="zh">简体中文</option>
           </select>
         </div>
 

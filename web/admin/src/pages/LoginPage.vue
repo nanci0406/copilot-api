@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { onBeforeUnmount, onMounted, ref } from "vue"
 import { useI18n } from "vue-i18n"
 import { useRoute, useRouter } from "vue-router"
 
@@ -14,10 +14,18 @@ const noticeStore = useNoticeStore()
 const sessionStore = useSessionStore()
 
 const secret = ref("")
+const secretInput = ref<HTMLInputElement | null>(null)
 const loading = ref(false)
 const errorMessage = ref("")
 
-const status = computed(() => sessionStore.status)
+onMounted(() => {
+  document.body.classList.add("auth-body")
+  secretInput.value?.focus()
+})
+
+onBeforeUnmount(() => {
+  document.body.classList.remove("auth-body")
+})
 
 async function submit(): Promise<void> {
   errorMessage.value = ""
@@ -53,8 +61,8 @@ async function submit(): Promise<void> {
           <div class="language-box">
             <label for="loginLanguageSelect">{{ t("common.language") }}</label>
             <select id="loginLanguageSelect" v-model="locale">
-              <option value="zh">简体中文</option>
               <option value="en">English</option>
+              <option value="zh">简体中文</option>
             </select>
           </div>
         </div>
@@ -72,16 +80,12 @@ async function submit(): Promise<void> {
             <span>{{ t("auth.secretLabel") }}</span>
             <input
               id="adminSecret"
+              ref="secretInput"
               v-model="secret"
               type="password"
               autocomplete="current-password"
           >
         </label>
-
-          <p v-if="status" class="helper-text">
-            {{ t("auth.sessionTtl", { days: status.sessionTtlDays }) }}
-            <span v-if="status.enforceHttps"> {{ t("auth.httpsRequired") }}</span>
-          </p>
 
           <button type="submit" :disabled="loading">
             {{ loading ? t("common.loading") : t("auth.submitLogin") }}

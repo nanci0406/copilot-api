@@ -114,7 +114,7 @@ async function clearAuthApiKey(): Promise<void> {
 </script>
 
 <template>
-  <div class="tab-content active">
+  <div id="tab-settings" class="tab-content active">
     <div class="card">
       <div class="card-header">
         <div class="settings-header-main">
@@ -137,17 +137,22 @@ async function clearAuthApiKey(): Promise<void> {
           <div class="settings-section-title">{{ t("settings.rateLimitSeconds") }}</div>
           <div class="settings-input-row">
             <input v-model="form.rateLimitSeconds" class="input" type="number" min="0">
-            <span class="settings-input-unit">sec</span>
+            <span class="settings-input-unit">{{ t("settings.secondsUnit") }}</span>
           </div>
           <label class="settings-switch-row settings-switch-row-compact">
             <span class="settings-switch-copy">
               <span class="settings-switch-title">{{ t("settings.rateLimitWait") }}</span>
+              <span class="settings-switch-hint">{{ t("settings.rateLimitWaitHint") }}</span>
             </span>
             <span class="settings-switch">
               <input v-model="form.rateLimitWait" type="checkbox">
               <span class="settings-switch-slider" />
             </span>
           </label>
+          <div class="notice settings-notice">
+            {{ t("settings.noticeProcessWide") }}
+            {{ t("settings.noticeSavedValues") }}
+          </div>
         </div>
 
         <div class="settings-section settings-context-section">
@@ -175,6 +180,7 @@ async function clearAuthApiKey(): Promise<void> {
               <input v-model="form.contextSummarizerModel" class="input" type="text">
             </label>
           </div>
+          <p class="hint">{{ t("settings.contextCompressionCostHint") }}</p>
         </div>
 
         <div class="settings-section settings-key-section">
@@ -220,7 +226,7 @@ async function clearAuthApiKey(): Promise<void> {
             </p>
             <div class="settings-input-row">
               <input v-model="form.adminSessionTtlDays" class="input" type="number" min="1">
-              <span class="settings-input-unit">days</span>
+              <span class="settings-input-unit">{{ t("settings.daysUnit") }}</span>
             </div>
           </div>
         </div>
