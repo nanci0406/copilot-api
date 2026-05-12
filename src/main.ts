@@ -3,11 +3,10 @@
 import consola from "consola"
 import { serve, type ServerHandler } from "srvx"
 
-import { getActiveAccount, setActiveAccount } from "./lib/accounts"
 import { mergeConfigWithDefaults } from "./lib/config"
 import { ensurePaths } from "./lib/paths"
 import { initProxyFromEnv } from "./lib/proxy"
-import { runtimeManager } from "./lib/runtime-manager"
+import { initializeStartupRuntime } from "./lib/startup-runtime"
 import { state } from "./lib/state"
 import { cacheVSCodeVersion } from "./lib/utils"
 
@@ -48,29 +47,7 @@ async function main(): Promise<void> {
   await ensurePaths()
   await cacheVSCodeVersion()
 
-  // Try to load active account from config
-  const activeAccount = await getActiveAccount()
-
-  if (activeAccount) {
-    if (!config.activeAccountId) {
-      await setActiveAccount(activeAccount.id)
-    }
-
-    consola.info(`Logged in as ${activeAccount.login}`)
-
-    if (state.showToken) {
-      consola.info("GitHub token:", activeAccount.token)
-    }
-
-    await runtimeManager.initialize(activeAccount)
-
-    consola.info(
-      `Available models: \n${state.models?.data.map((model) => `- ${model.id}`).join("\n")}`,
-    )
-  } else {
-    runtimeManager.clearActiveContext()
-    consola.warn("No account configured. Visit /admin to add an account.")
-  }
+  await initializeStartupRuntime(config)
 
   const serverUrl = `http://localhost:${PORT}`
 
