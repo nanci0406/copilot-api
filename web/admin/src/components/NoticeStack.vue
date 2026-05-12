@@ -22,7 +22,7 @@ const { items } = storeToRefs(noticeStore)
           class="notice-dismiss"
           @click="noticeStore.remove(item.id)"
         >
-          ×
+          &times;
         </button>
       </div>
     </transition-group>

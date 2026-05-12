@@ -17,10 +17,15 @@ const manualHtml = computed(() =>
 </script>
 
 <template>
-  <section class="page-card">
-    <h1 class="page-title">{{ t("manual.title") }}</h1>
-    <p class="page-subtitle">{{ t("manual.subtitle") }}</p>
-
-    <article class="page-section markdown-body" v-html="manualHtml" />
-  </section>
+  <div class="tab-content active">
+    <div class="card">
+      <div class="card-header">
+        <div class="settings-header-main">
+          <span class="card-title">{{ t("manual.title") }}</span>
+          <p class="settings-subtitle">{{ t("manual.subtitle") }}</p>
+        </div>
+      </div>
+      <article class="manual-doc markdown-body" v-html="manualHtml" />
+    </div>
+  </div>
 </template>

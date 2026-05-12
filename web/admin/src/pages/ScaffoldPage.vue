@@ -7,10 +7,12 @@ defineProps<{ titleKey: string }>()
 </script>
 
 <template>
-  <section class="page-card">
-    <h1 class="page-title">{{ t(titleKey) }}</h1>
-    <p class="page-subtitle">
-      {{ t("scaffold.copy") }}
-    </p>
-  </section>
+  <div class="tab-content active">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">{{ t(titleKey) }}</span>
+      </div>
+      <div class="empty-state">{{ t("scaffold.copy") }}</div>
+    </div>
+  </div>
 </template>

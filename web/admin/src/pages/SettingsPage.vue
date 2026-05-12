@@ -114,129 +114,145 @@ async function clearAuthApiKey(): Promise<void> {
 </script>
 
 <template>
-  <section class="page-card">
-    <h1 class="page-title">{{ t("settings.title") }}</h1>
-    <p class="page-subtitle">{{ t("settings.subtitle") }}</p>
+  <div class="tab-content active">
+    <div class="card">
+      <div class="card-header">
+        <div class="settings-header-main">
+          <span class="card-title">{{ t("settings.trafficControl") }}</span>
+          <p class="settings-subtitle">{{ t("settings.subtitle") }}</p>
+        </div>
+        <div class="settings-save-wrap">
+          <button form="settingsForm" type="submit" class="btn btn-primary btn-sm">
+            {{ t("common.save") }}
+          </button>
+        </div>
+      </div>
 
-    <div v-if="settingsQuery.isLoading.value" class="empty-state">
-      {{ t("common.loading") }}
+      <div v-if="settingsQuery.isLoading.value" class="empty-state">
+        {{ t("common.loading") }}
+      </div>
+
+      <form v-else id="settingsForm" class="settings-form-grid" @submit.prevent="submit">
+        <div class="settings-section settings-rate-limit-section">
+          <div class="settings-section-title">{{ t("settings.rateLimitSeconds") }}</div>
+          <div class="settings-input-row">
+            <input v-model="form.rateLimitSeconds" class="input" type="number" min="0">
+            <span class="settings-input-unit">sec</span>
+          </div>
+          <label class="settings-switch-row settings-switch-row-compact">
+            <span class="settings-switch-copy">
+              <span class="settings-switch-title">{{ t("settings.rateLimitWait") }}</span>
+            </span>
+            <span class="settings-switch">
+              <input v-model="form.rateLimitWait" type="checkbox">
+              <span class="settings-switch-slider" />
+            </span>
+          </label>
+        </div>
+
+        <div class="settings-section settings-context-section">
+          <label class="settings-switch-row">
+            <span class="settings-switch-copy">
+              <span class="settings-switch-title">{{ t("settings.contextTitle") }}</span>
+              <span class="settings-switch-hint">{{ t("settings.contextEnabled") }}</span>
+            </span>
+            <span class="settings-switch">
+              <input v-model="form.contextEnabled" type="checkbox">
+              <span class="settings-switch-slider" />
+            </span>
+          </label>
+          <div class="settings-context-options">
+            <label class="settings-field">
+              <span>{{ t("settings.contextSummarizeAtPercent") }}</span>
+              <input v-model="form.contextSummarizeAtPercent" class="input" type="number" min="50" max="95">
+            </label>
+            <label class="settings-field">
+              <span>{{ t("settings.contextKeepRecentTurns") }}</span>
+              <input v-model="form.contextKeepRecentTurns" class="input" type="number" min="1" max="20">
+            </label>
+            <label class="settings-field">
+              <span>{{ t("settings.contextSummarizerModel") }}</span>
+              <input v-model="form.contextSummarizerModel" class="input" type="text">
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-section settings-key-section">
+          <div class="settings-title-row">
+            <div class="settings-section-title">{{ t("settings.anthropicApiKey") }}</div>
+          </div>
+          <div class="settings-input-row">
+            <input v-model="form.anthropicApiKey" class="input" type="password">
+            <button type="button" class="btn settings-inline-btn" @click="clearAnthropicApiKey">
+              {{ t("settings.clearAnthropicApiKey") }}
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-section settings-key-section">
+          <div class="settings-title-row">
+            <div class="settings-section-title">{{ t("settings.gatewayApiKey") }}</div>
+          </div>
+          <div class="settings-input-row">
+            <input v-model="form.authApiKey" class="input" type="password">
+            <button type="button" class="btn settings-inline-btn" @click="clearAuthApiKey">
+              {{ t("settings.clearGatewayApiKey") }}
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-section settings-admin-section">
+          <div class="settings-title-row">
+            <div class="settings-section-title">{{ t("settings.securityTitle") }}</div>
+            <div v-if="settingsQuery.data.value" class="settings-title-actions">
+              <span class="settings-status-badge" :class="{ 'is-set': settingsQuery.data.value.adminAuth.configured }">
+                {{ settingsQuery.data.value.adminAuth.configured ? t("common.yes") : t("common.no") }}
+              </span>
+            </div>
+          </div>
+          <div v-if="settingsQuery.data.value" class="settings-security-meta">
+            <p class="hint">
+              {{ t("settings.securitySource") }}: {{ settingsQuery.data.value.adminAuth.secretSource }}
+            </p>
+            <p class="hint">
+              {{ t("settings.securityHttps") }}:
+              {{ settingsQuery.data.value.adminAuth.enforceHttps ? t("common.yes") : t("common.no") }}
+            </p>
+            <div class="settings-input-row">
+              <input v-model="form.adminSessionTtlDays" class="input" type="number" min="1">
+              <span class="settings-input-unit">days</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section settings-maintenance-section">
+          <div class="settings-title-row">
+            <div class="settings-section-title">{{ t("settings.usageLogMaintenance") }}</div>
+          </div>
+          <div class="settings-context-options">
+            <label class="settings-field">
+              <span>{{ t("settings.usageTestIntervalMinutes") }}</span>
+              <input v-model="form.usageTestIntervalMinutes" class="input" type="number" min="0">
+            </label>
+            <label class="settings-field">
+              <span>{{ t("settings.usageLogCountMode") }}</span>
+              <select v-model="form.usageLogCountMode" class="select">
+                <option value="request">{{ t("settings.countModeRequest") }}</option>
+                <option value="conversation">{{ t("settings.countModeConversation") }}</option>
+              </select>
+            </label>
+          </div>
+          <label class="settings-switch-row settings-switch-row-compact">
+            <span class="settings-switch-copy">
+              <span class="settings-switch-title">{{ t("settings.disableHiddenModels") }}</span>
+            </span>
+            <span class="settings-switch">
+              <input v-model="form.disableHiddenModels" type="checkbox">
+              <span class="settings-switch-slider" />
+            </span>
+          </label>
+        </div>
+      </form>
     </div>
-
-    <form v-else class="page-section form-grid" @submit.prevent="submit">
-      <div class="form-two-column">
-        <label class="field">
-          <span>{{ t("settings.rateLimitSeconds") }}</span>
-          <input v-model="form.rateLimitSeconds" type="number" min="0">
-        </label>
-
-        <label class="field">
-          <span>{{ t("settings.adminSessionTtlDays") }}</span>
-          <input v-model="form.adminSessionTtlDays" type="number" min="1">
-        </label>
-
-        <label class="field">
-          <span>{{ t("settings.usageTestIntervalMinutes") }}</span>
-          <input v-model="form.usageTestIntervalMinutes" type="number" min="0">
-        </label>
-
-        <label class="field">
-          <span>{{ t("settings.usageLogCountMode") }}</span>
-          <select v-model="form.usageLogCountMode">
-            <option value="request">{{ t("settings.countModeRequest") }}</option>
-            <option value="conversation">{{ t("settings.countModeConversation") }}</option>
-          </select>
-        </label>
-      </div>
-
-      <label class="toggle-field">
-        <input v-model="form.rateLimitWait" type="checkbox">
-        <span>{{ t("settings.rateLimitWait") }}</span>
-      </label>
-
-      <label class="toggle-field">
-        <input v-model="form.disableHiddenModels" type="checkbox">
-        <span>{{ t("settings.disableHiddenModels") }}</span>
-      </label>
-
-      <div class="sub-card">
-        <h2 class="section-title">{{ t("settings.contextTitle") }}</h2>
-        <div class="form-two-column">
-          <label class="toggle-field">
-            <input v-model="form.contextEnabled" type="checkbox">
-            <span>{{ t("settings.contextEnabled") }}</span>
-          </label>
-
-          <label class="field">
-            <span>{{ t("settings.contextSummarizeAtPercent") }}</span>
-            <input v-model="form.contextSummarizeAtPercent" type="number" min="50" max="95">
-          </label>
-
-          <label class="field">
-            <span>{{ t("settings.contextKeepRecentTurns") }}</span>
-            <input v-model="form.contextKeepRecentTurns" type="number" min="1" max="20">
-          </label>
-
-          <label class="field">
-            <span>{{ t("settings.contextSummarizerModel") }}</span>
-            <input v-model="form.contextSummarizerModel" type="text">
-          </label>
-        </div>
-      </div>
-
-      <div class="sub-card">
-        <h2 class="section-title">{{ t("settings.keysTitle") }}</h2>
-        <div class="form-two-column">
-          <label class="field">
-            <span>{{ t("settings.anthropicApiKey") }}</span>
-            <input v-model="form.anthropicApiKey" type="password">
-          </label>
-
-          <label class="field">
-            <span>{{ t("settings.gatewayApiKey") }}</span>
-            <input v-model="form.authApiKey" type="password">
-          </label>
-        </div>
-        <div class="inline-actions">
-          <button type="button" class="btn btn-ghost" @click="clearAnthropicApiKey">
-            {{ t("settings.clearAnthropicApiKey") }}
-          </button>
-          <button type="button" class="btn btn-ghost" @click="clearAuthApiKey">
-            {{ t("settings.clearGatewayApiKey") }}
-          </button>
-        </div>
-      </div>
-
-      <div class="sub-card" v-if="settingsQuery.data.value">
-        <h2 class="section-title">{{ t("settings.securityTitle") }}</h2>
-        <div class="metric-grid">
-          <div class="metric-row">
-            <span>{{ t("settings.securityConfigured") }}</span>
-            <strong>{{ settingsQuery.data.value.adminAuth.configured ? t("common.yes") : t("common.no") }}</strong>
-          </div>
-          <div class="metric-row">
-            <span>{{ t("settings.securitySource") }}</span>
-            <strong>{{ settingsQuery.data.value.adminAuth.secretSource }}</strong>
-          </div>
-          <div class="metric-row">
-            <span>{{ t("settings.securityHttps") }}</span>
-            <strong>{{ settingsQuery.data.value.adminAuth.enforceHttps ? t("common.yes") : t("common.no") }}</strong>
-          </div>
-          <div class="metric-row">
-            <span>{{ t("settings.securityEnvOverride") }}</span>
-            <strong>
-              {{
-                settingsQuery.data.value.envOverride.rateLimitSeconds || settingsQuery.data.value.envOverride.rateLimitWait ?
-                  t("common.yes")
-                : t("common.no")
-              }}
-            </strong>
-          </div>
-        </div>
-      </div>
-
-      <button type="submit" class="btn btn-primary">
-        {{ t("common.save") }}
-      </button>
-    </form>
-  </section>
+  </div>
 </template>

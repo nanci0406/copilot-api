@@ -104,40 +104,37 @@ async function removeMapping(from: string): Promise<void> {
 </script>
 
 <template>
-  <section class="page-card">
-    <h1 class="page-title">{{ t("mappings.title") }}</h1>
-    <p class="page-subtitle">{{ t("mappings.subtitle") }}</p>
+  <div class="tab-content active">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">{{ t("mappings.title") }}</span>
+        <button
+          type="button"
+          class="btn btn-primary btn-sm"
+          :disabled="!fromAlias.trim() || !targetModel.trim() || saveMutation.isPending.value"
+          @click="saveMutation.mutate()"
+        >
+          {{ t("common.save") }}
+        </button>
+      </div>
 
-    <div class="page-section sub-card">
-      <h2 class="section-title">{{ t("mappings.createTitle") }}</h2>
-      <div class="form-two-column">
-        <label class="field">
-          <span>{{ t("mappings.from") }}</span>
-          <input v-model="fromAlias" type="text">
-        </label>
-
-        <label class="field">
-          <span>{{ t("mappings.to") }}</span>
-          <select v-model="targetModel">
+      <div class="mapping-form">
+        <div class="mapping-form-row">
+          <input
+            v-model="fromAlias"
+            class="select mapping-input-inline"
+            :placeholder="t('mappings.from')"
+          >
+          <span class="mapping-arrow">-&gt;</span>
+          <select v-model="targetModel" class="select mapping-input-inline">
             <option value="">{{ t("mappings.selectTarget") }}</option>
             <option v-for="model in availableModels" :key="model.id" :value="model.id">
               {{ model.id }}
             </option>
           </select>
-        </label>
+        </div>
       </div>
 
-      <button
-        type="button"
-        class="btn btn-primary"
-        :disabled="!fromAlias.trim() || !targetModel.trim() || saveMutation.isPending.value"
-        @click="saveMutation.mutate()"
-      >
-        {{ t("common.save") }}
-      </button>
-    </div>
-
-    <div class="page-section table-card">
       <div v-if="mappingsQuery.isLoading.value" class="empty-state">
         {{ t("common.loading") }}
       </div>
@@ -147,9 +144,14 @@ async function removeMapping(from: string): Promise<void> {
       >
         {{ t("mappings.empty") }}
       </div>
-      <table v-else class="data-table">
+      <table v-else class="mapping-table">
+        <colgroup>
+          <col class="mapping-col-from">
+          <col class="mapping-col-to">
+          <col class="mapping-col-action">
+        </colgroup>
         <thead>
-          <tr>
+          <tr class="mapping-head">
             <th>{{ t("mappings.from") }}</th>
             <th>{{ t("mappings.to") }}</th>
             <th>{{ t("mappings.actions") }}</th>
@@ -159,12 +161,17 @@ async function removeMapping(from: string): Promise<void> {
           <tr
             v-for="[from, to] in Object.entries(mappingsQuery.data.value?.modelMapping ?? {})"
             :key="from"
+            class="mapping-row"
           >
-            <td>{{ from }}</td>
-            <td>{{ to }}</td>
-            <td>
-              <div class="inline-actions">
-                <button type="button" class="btn btn-ghost btn-sm" @click="copyMapping(from, to)">
+            <td class="mapping-cell">
+              <span class="mapping-model-pill mapping-model-from">{{ from }}</span>
+            </td>
+            <td class="mapping-cell mapping-cell-to">
+              <span class="mapping-model-pill mapping-model-to">{{ to }}</span>
+            </td>
+            <td class="mapping-cell mapping-cell-action">
+              <div class="mapping-action-group">
+                <button type="button" class="btn btn-sm" @click="copyMapping(from, to)">
                   {{ t("mappings.copy") }}
                 </button>
                 <button type="button" class="btn btn-danger btn-sm" @click="removeMapping(from)">
@@ -176,5 +183,5 @@ async function removeMapping(from: string): Promise<void> {
         </tbody>
       </table>
     </div>
-  </section>
+  </div>
 </template>

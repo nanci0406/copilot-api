@@ -142,119 +142,119 @@ function followingPage(): void {
 </script>
 
 <template>
-  <section class="page-card">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">{{ t("usage.title") }}</h1>
-        <p class="page-subtitle">{{ t("usage.subtitle") }}</p>
-      </div>
-      <button type="button" class="btn btn-ghost" @click="queryClient.invalidateQueries({ queryKey: ['admin'] })">
-        {{ t("common.refresh") }}
-      </button>
-    </div>
-
-    <div class="page-section toolbar-row">
-      <label class="field compact-field">
-        <span>{{ t("usage.source") }}</span>
-        <select v-model="source">
-          <option value="all">{{ t("usage.sourceAll") }}</option>
-          <option value="request">{{ t("usage.sourceRequest") }}</option>
-        </select>
-      </label>
-
-      <label class="field compact-field">
-        <span>{{ t("usage.endpoint") }}</span>
-        <select v-model="endpoint">
-          <option value="">{{ t("usage.endpointAll") }}</option>
-          <option
-            v-for="item in logsQuery.data.value?.pagination.endpoints ?? []"
-            :key="item"
-            :value="item"
-          >
-            {{ item }}
-          </option>
-        </select>
-      </label>
-
-      <label class="field compact-field">
-        <span>{{ t("usage.pageSize") }}</span>
-        <select v-model="limit">
-          <option :value="20">20</option>
-          <option :value="50">50</option>
-          <option :value="100">100</option>
-          <option :value="200">200</option>
-        </select>
-      </label>
-
-      <div class="inline-actions">
-        <button type="button" class="btn btn-ghost btn-sm" @click="clearMutation.mutate()">
-          {{ t("usage.clearCurrent") }}
-        </button>
-        <button type="button" class="btn btn-danger btn-sm" @click="clearAllMutation.mutate()">
-          {{ t("usage.clearAll") }}
+  <div class="tab-content active">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">{{ t("usage.statistics") }}</span>
+        <button type="button" class="btn btn-sm refresh-btn" @click="queryClient.invalidateQueries({ queryKey: ['admin'] })">
+          {{ t("common.refresh") }}
         </button>
       </div>
-    </div>
 
-    <div v-if="summaryQuery.isLoading.value" class="empty-state">
-      {{ t("common.loading") }}
-    </div>
-    <div v-else class="quota-grid">
-      <article v-for="card in quotaCards" :key="card.key" class="quota-card">
-        <div class="quota-head">
-          <span>{{ card.key }}</span>
-          <strong>{{ card.quota.unlimited ? "∞" : `${card.percentUsed.toFixed(1)}%` }}</strong>
-        </div>
-        <div class="quota-bar">
-          <div class="quota-bar-fill" :style="{ width: `${card.quota.unlimited ? 100 : card.percentUsed}%` }" />
-        </div>
-        <div class="table-subtitle">
-          {{ card.quota.unlimited ? "∞" : `${formatNumber(card.used)} / ${formatNumber(card.quota.entitlement)}` }}
-        </div>
-      </article>
-    </div>
+      <div v-if="summaryQuery.isLoading.value" class="empty-state">
+        {{ t("common.loading") }}
+      </div>
+      <div v-else class="usage-grid">
+        <article v-for="card in quotaCards" :key="card.key" class="usage-card">
+          <div class="usage-header">
+            <span class="usage-title">{{ card.key }}</span>
+            <span class="usage-percent">
+              {{ card.quota.unlimited ? "Unlimited" : `${card.percentUsed.toFixed(1)}%` }}
+            </span>
+          </div>
+          <div class="usage-bar">
+            <div
+              class="usage-bar-fill green"
+              :style="{ width: `${card.quota.unlimited ? 100 : card.percentUsed}%` }"
+            />
+          </div>
+          <div class="usage-stats">
+            <span>{{ card.quota.unlimited ? "Unlimited" : formatNumber(card.used) }}</span>
+            <span>{{ card.quota.unlimited ? "Unlimited" : formatNumber(card.quota.entitlement) }}</span>
+          </div>
+        </article>
+      </div>
 
-    <div class="page-section table-card">
-      <div class="toolbar-row">
-        <strong>{{ t("usage.logs") }}</strong>
-        <div class="inline-actions">
-          <button type="button" class="btn btn-ghost btn-sm" :disabled="pageIndex === 1" @click="previousPage">
+      <div class="usage-log-card">
+        <div class="usage-log-toolbar">
+          <label class="usage-log-source-filter">
+            <span class="usage-log-source-text">{{ t("usage.source") }}</span>
+            <select v-model="source" class="select">
+              <option value="all">{{ t("usage.sourceAll") }}</option>
+              <option value="request">{{ t("usage.sourceRequest") }}</option>
+            </select>
+          </label>
+          <label class="usage-log-source-filter">
+            <span class="usage-log-source-text">{{ t("usage.endpoint") }}</span>
+            <select v-model="endpoint" class="select">
+              <option value="">{{ t("usage.endpointAll") }}</option>
+              <option
+                v-for="item in logsQuery.data.value?.pagination.endpoints ?? []"
+                :key="item"
+                :value="item"
+              >
+                {{ item }}
+              </option>
+            </select>
+          </label>
+          <label class="usage-log-page-size-wrap">
+            <span class="usage-log-page-size-label">{{ t("usage.pageSize") }}</span>
+            <select v-model="limit" class="select">
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+              <option :value="200">200</option>
+            </select>
+          </label>
+          <button type="button" class="btn btn-sm" @click="clearMutation.mutate()">
+            {{ t("usage.clearCurrent") }}
+          </button>
+          <button type="button" class="btn btn-danger btn-sm" @click="clearAllMutation.mutate()">
+            {{ t("usage.clearAll") }}
+          </button>
+        </div>
+
+        <div v-if="logsQuery.isLoading.value" class="empty-state">
+          {{ t("common.loading") }}
+        </div>
+        <div v-else-if="(logsQuery.data.value?.logs.length ?? 0) === 0" class="empty-state">
+          {{ t("usage.empty") }}
+        </div>
+        <div v-else class="usage-log-table-wrap">
+          <table class="usage-log-table">
+            <thead>
+              <tr>
+                <th>{{ t("usage.time") }}</th>
+                <th>{{ t("usage.endpoint") }}</th>
+                <th>{{ t("usage.model") }}</th>
+                <th>{{ t("usage.multiplier") }}</th>
+                <th>{{ t("usage.delta") }}</th>
+                <th>{{ t("usage.requestCount") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="log in logsQuery.data.value?.logs ?? []" :key="log.id">
+                <td>{{ formatDateTime(log.lastSeenAt) }}</td>
+                <td>{{ log.endpoint ?? "--" }}</td>
+                <td>{{ log.model ?? "--" }}</td>
+                <td>{{ log.multiplier ?? "--" }}</td>
+                <td>{{ log.quotaDelta }}</td>
+                <td>{{ log.requestCount }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="usage-log-pagination">
+          <button type="button" class="usage-log-page-btn" :disabled="pageIndex === 1" @click="previousPage">
             {{ t("usage.previousPage") }}
           </button>
-          <button type="button" class="btn btn-ghost btn-sm" :disabled="!nextCursor" @click="followingPage">
+          <span class="usage-log-page-info">{{ pageIndex }}</span>
+          <button type="button" class="usage-log-page-btn" :disabled="!nextCursor" @click="followingPage">
             {{ t("usage.nextPage") }}
           </button>
         </div>
       </div>
-
-      <div v-if="logsQuery.isLoading.value" class="empty-state">
-        {{ t("common.loading") }}
-      </div>
-      <div v-else-if="(logsQuery.data.value?.logs.length ?? 0) === 0" class="empty-state">
-        {{ t("usage.empty") }}
-      </div>
-      <table v-else class="data-table">
-        <thead>
-          <tr>
-            <th>{{ t("usage.time") }}</th>
-            <th>{{ t("usage.endpoint") }}</th>
-            <th>{{ t("usage.model") }}</th>
-            <th>{{ t("usage.multiplier") }}</th>
-            <th>{{ t("usage.delta") }}</th>
-            <th>{{ t("usage.requestCount") }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="log in logsQuery.data.value?.logs ?? []" :key="log.id">
-            <td>{{ formatDateTime(log.lastSeenAt) }}</td>
-            <td>{{ log.endpoint ?? "--" }}</td>
-            <td>{{ log.model ?? "--" }}</td>
-            <td>{{ log.multiplier ?? "--" }}</td>
-            <td>{{ log.quotaDelta }}</td>
-            <td>{{ log.requestCount }}</td>
-          </tr>
-        </tbody>
-      </table>
     </div>
-  </section>
+  </div>
 </template>

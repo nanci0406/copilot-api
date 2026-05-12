@@ -164,80 +164,110 @@ async function updateDisableHiddenModels(enabled: boolean): Promise<void> {
 </script>
 
 <template>
-  <section class="page-card">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">{{ t("models.title") }}</h1>
-        <p class="page-subtitle">{{ t("models.subtitle") }}</p>
+  <div class="tab-content active">
+    <div class="card">
+      <div class="card-header models-card-header">
+        <span class="card-title">{{ t("models.availableModels") }}</span>
+        <div class="models-header-actions">
+          <label class="models-header-policy-toggle">
+            <span class="models-header-policy-copy">
+              <span class="models-header-policy-title">
+                {{ t("models.disableHiddenModels") }}
+              </span>
+            </span>
+            <span class="settings-switch">
+              <input
+                type="checkbox"
+                :checked="settingsQuery.data.value?.disableHiddenModels ?? false"
+                :disabled="busyKey === 'disable-hidden'"
+                @change="updateDisableHiddenModels(($event.target as HTMLInputElement).checked)"
+              >
+              <span class="settings-switch-slider" />
+            </span>
+          </label>
+
+          <select
+            class="select"
+            :value="visibilityFilter"
+            @change="visibilityFilter = ($event.target as HTMLSelectElement).value as 'all' | 'hidden' | 'visible'"
+          >
+            <option value="all">{{ t("models.filterAll") }}</option>
+            <option value="visible">{{ t("models.filterVisible") }}</option>
+            <option value="hidden">{{ t("models.filterHidden") }}</option>
+          </select>
+          <button type="button" class="btn btn-sm refresh-btn" @click="refreshAll">
+            {{ t("common.refresh") }}
+          </button>
+        </div>
       </div>
 
-      <button type="button" class="btn btn-ghost" @click="refreshAll">
-        {{ t("common.refresh") }}
-      </button>
-    </div>
-
-    <div class="page-section toolbar-row">
-      <label class="field compact-field">
-        <span>{{ t("models.visibilityFilter") }}</span>
-        <select
-          :value="visibilityFilter"
-          @change="visibilityFilter = ($event.target as HTMLSelectElement).value as 'all' | 'hidden' | 'visible'"
+      <div v-if="modelsQuery.isLoading.value || premiumQuery.isLoading.value" class="empty-state">
+        {{ t("common.loading") }}
+      </div>
+      <div v-else-if="filteredModels.length === 0" class="empty-state">
+        {{ t("models.empty") }}
+      </div>
+      <div v-else class="models-grid">
+        <article
+          v-for="row in filteredModels"
+          :key="row.id"
+          class="model-card"
+          :class="{ 'hidden-model': row.hidden }"
         >
-          <option value="all">{{ t("models.filterAll") }}</option>
-          <option value="visible">{{ t("models.filterVisible") }}</option>
-          <option value="hidden">{{ t("models.filterHidden") }}</option>
-        </select>
-      </label>
+          <div class="model-top">
+            <div class="model-name" :title="row.id">
+              {{ row.displayName || row.id }}
+            </div>
+            <div class="model-right">
+              <span
+                class="model-multiplier"
+                :class="row.multiplier > 0 ? 'paid' : 'free'"
+                :title="t('models.multiplier')"
+              >
+                {{ row.multiplier || 0 }}x
+              </span>
+              <button
+                type="button"
+                class="model-visibility-action-btn"
+                :class="{ show: row.hidden }"
+                :disabled="busyKey === `visibility:${row.id}`"
+                @click="toggleHiddenModel(row.id, row.hidden)"
+              >
+                {{ row.hidden ? t("models.hidden") : t("models.visible") }}
+              </button>
+            </div>
+          </div>
 
-      <label class="toggle-field">
-        <input
-          type="checkbox"
-          :checked="settingsQuery.data.value?.disableHiddenModels ?? false"
-          :disabled="busyKey === 'disable-hidden'"
-          @change="updateDisableHiddenModels(($event.target as HTMLInputElement).checked)"
-        >
-        <span>{{ t("models.disableHiddenModels") }}</span>
-      </label>
-    </div>
-
-    <div v-if="modelsQuery.isLoading.value || premiumQuery.isLoading.value" class="empty-state">
-      {{ t("common.loading") }}
-    </div>
-    <div v-else-if="filteredModels.length === 0" class="empty-state">
-      {{ t("models.empty") }}
-    </div>
-    <div v-else class="table-card">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>{{ t("models.model") }}</th>
-            <th>{{ t("models.provider") }}</th>
-            <th>{{ t("models.contextWindow") }}</th>
-            <th>{{ t("models.features") }}</th>
-            <th>{{ t("models.multiplier") }}</th>
-            <th>{{ t("models.reasoningEffort") }}</th>
-            <th>{{ t("models.visibility") }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in filteredModels" :key="row.id">
-            <td>
-              <div class="table-title">{{ row.displayName }}</div>
-              <div class="table-subtitle">{{ row.id }}</div>
-            </td>
-            <td>{{ row.ownedBy }}</td>
-            <td>{{ row.contextWindowTokens ? formatNumber(row.contextWindowTokens) : "--" }}</td>
-            <td>
-              <div class="tag-list">
-                <span v-for="feature in row.features" :key="feature" class="tag">
-                  {{ feature }}
+          <div class="model-meta">
+            <div class="model-meta-row">
+              <span class="model-meta-group model-meta-group-left">
+                <span class="model-meta-label">{{ t("models.provider") }}</span>
+                <span class="model-meta-value">{{ row.ownedBy }}</span>
+              </span>
+              <span class="model-meta-group model-meta-group-right">
+                <span class="model-meta-label">{{ t("models.contextWindow") }}</span>
+                <span class="model-meta-value">
+                  {{ row.contextWindowTokens ? formatNumber(row.contextWindowTokens) : "--" }}
                 </span>
-                <span v-if="row.features.length === 0" class="table-subtitle">--</span>
-              </div>
-            </td>
-            <td>
+              </span>
+            </div>
+            <div class="model-meta-row">
+              <span class="model-meta-group model-meta-group-left">
+                <span class="model-meta-label">ID</span>
+                <span class="model-meta-value">{{ row.id }}</span>
+              </span>
+            </div>
+            <div class="model-meta-row">
+              <span class="model-meta-group model-meta-group-left">
+                <span class="model-meta-label">{{ t("models.features") }}</span>
+                <span class="model-meta-value">
+                  {{ row.features.length ? row.features.join(", ") : "--" }}
+                </span>
+              </span>
+            </div>
+            <div class="model-meta-row">
               <input
-                class="table-input"
+                class="model-multiplier-input"
                 type="number"
                 min="0"
                 step="0.01"
@@ -245,10 +275,8 @@ async function updateDisableHiddenModels(enabled: boolean): Promise<void> {
                 :disabled="busyKey === `multiplier:${row.id}`"
                 @change="handleMultiplierChange(row.id, ($event.target as HTMLInputElement).value)"
               >
-            </td>
-            <td>
               <select
-                class="table-input"
+                class="model-reasoning-select"
                 :value="row.reasoningEffort ?? ''"
                 :disabled="row.supportedEfforts.length === 0 || busyKey === `reasoning:${row.id}`"
                 @change="handleReasoningChange(row.id, ($event.target as HTMLSelectElement).value)"
@@ -257,20 +285,10 @@ async function updateDisableHiddenModels(enabled: boolean): Promise<void> {
                   {{ effort }}
                 </option>
               </select>
-            </td>
-            <td>
-              <button
-                type="button"
-                class="btn btn-ghost btn-sm"
-                :disabled="busyKey === `visibility:${row.id}`"
-                @click="toggleHiddenModel(row.id, row.hidden)"
-              >
-                {{ row.hidden ? t("models.hidden") : t("models.visible") }}
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+          </div>
+        </article>
+      </div>
     </div>
-  </section>
+  </div>
 </template>
