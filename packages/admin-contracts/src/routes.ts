@@ -5,6 +5,7 @@ export type AdminApiDomain =
   | "session"
   | "setup"
   | "accounts"
+  | "account-selection"
   | "auth"
   | "usage"
   | "mappings"
@@ -82,6 +83,20 @@ export const adminApiRouteManifest = [
     access: "protected",
     domain: "accounts",
     strategy: "retain",
+  },
+  {
+    method: "GET",
+    path: "/api/account-selection",
+    access: "protected",
+    domain: "account-selection",
+    strategy: "reshape",
+  },
+  {
+    method: "PUT",
+    path: "/api/account-selection",
+    access: "protected",
+    domain: "account-selection",
+    strategy: "reshape",
   },
   {
     method: "POST",

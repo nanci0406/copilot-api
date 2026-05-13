@@ -28,6 +28,12 @@ export type ReasoningEffort =
 
 export type UsageLogCountMode = "request" | "conversation"
 export type ContextManagementMode = "trim" | "summarize_then_trim"
+export type AccountSelectionMode = "active_only" | "account_pool"
+export type AccountPoolScope = "all_accounts" | "selected_accounts"
+export type AccountSelectorStrategy =
+  | "least_recently_used"
+  | "round_robin"
+  | "quota_aware"
 
 export interface ContextManagementConfig {
   mode?: ContextManagementMode
@@ -45,6 +51,26 @@ export interface ResolvedContextManagementConfig {
   keepRecentTurns: number
   summaryMaxTokens: number
   summarizerModel?: string
+}
+
+export interface AccountSelectionConfig {
+  mode?: AccountSelectionMode
+  poolScope?: AccountPoolScope
+  selectedAccountIds?: Array<string>
+  stickySessions?: boolean
+  stickySessionTtlMinutes?: number
+  failoverOnRequestError?: boolean
+  selectorStrategy?: AccountSelectorStrategy
+}
+
+export interface ResolvedAccountSelectionConfig {
+  mode: AccountSelectionMode
+  poolScope: AccountPoolScope
+  selectedAccountIds: Array<string>
+  stickySessions: boolean
+  stickySessionTtlMinutes: number
+  failoverOnRequestError: boolean
+  selectorStrategy: AccountSelectorStrategy
 }
 
 export interface AuthConfig {
@@ -76,6 +102,7 @@ export interface AppConfig {
   usageTestIntervalMinutes?: number | null
   usageLogCountMode?: UsageLogCountMode
   contextManagement?: ContextManagementConfig
+  accountSelection?: AccountSelectionConfig
   // Account management
   accounts?: Array<AccountConfig>
   activeAccountId?: string | null
@@ -94,6 +121,19 @@ const gpt5ExplorationPrompt = `## Exploration and reading files
 - **multi_tool_use.parallel** Use multi_tool_use.parallel to parallelize tool calls and only this.
 - **Only make sequential calls if you truly cannot know the next file without seeing a result first.**
 - **Workflow:** (a) plan all needed reads → (b) issue one parallel batch → (c) analyze results → (d) repeat if new, unpredictable reads arise.`
+
+export const ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MIN = 5
+export const ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MAX = 10_080
+
+export const defaultAccountSelectionConfig: ResolvedAccountSelectionConfig = {
+  mode: "active_only",
+  poolScope: "all_accounts",
+  selectedAccountIds: [],
+  stickySessions: true,
+  stickySessionTtlMinutes: 720,
+  failoverOnRequestError: false,
+  selectorStrategy: "least_recently_used",
+}
 
 const defaultConfig: AppConfig = {
   auth: {},
@@ -142,6 +182,7 @@ const defaultConfig: AppConfig = {
     keepRecentTurns: 4,
     summaryMaxTokens: 2048,
   },
+  accountSelection: defaultAccountSelectionConfig,
   accounts: [],
   activeAccountId: null,
 }
@@ -165,6 +206,19 @@ const VALID_CONTEXT_MANAGEMENT_MODES = new Set<ContextManagementMode>([
   "trim",
   "summarize_then_trim",
 ])
+const VALID_ACCOUNT_SELECTION_MODES = new Set<AccountSelectionMode>([
+  "active_only",
+  "account_pool",
+])
+const VALID_ACCOUNT_POOL_SCOPES = new Set<AccountPoolScope>([
+  "all_accounts",
+  "selected_accounts",
+])
+const VALID_ACCOUNT_SELECTOR_STRATEGIES = new Set<AccountSelectorStrategy>([
+  "least_recently_used",
+  "round_robin",
+  "quota_aware",
+])
 
 export function isValidReasoningEffort(
   value: unknown,
@@ -186,6 +240,33 @@ export function isValidUsageLogCountMode(
 
 export function normalizeUsageLogCountMode(value: unknown): UsageLogCountMode {
   return isValidUsageLogCountMode(value) ? value : "request"
+}
+
+export function isValidAccountSelectionMode(
+  value: unknown,
+): value is AccountSelectionMode {
+  return (
+    typeof value === "string"
+    && VALID_ACCOUNT_SELECTION_MODES.has(value as AccountSelectionMode)
+  )
+}
+
+export function isValidAccountPoolScope(
+  value: unknown,
+): value is AccountPoolScope {
+  return (
+    typeof value === "string"
+    && VALID_ACCOUNT_POOL_SCOPES.has(value as AccountPoolScope)
+  )
+}
+
+export function isValidAccountSelectorStrategy(
+  value: unknown,
+): value is AccountSelectorStrategy {
+  return (
+    typeof value === "string"
+    && VALID_ACCOUNT_SELECTOR_STRATEGIES.has(value as AccountSelectorStrategy)
+  )
 }
 
 function isValidContextManagementMode(
@@ -212,6 +293,93 @@ function normalizePositiveInteger(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ?
       Math.floor(value)
     : fallback
+}
+
+function normalizeIntegerInRange(
+  value: unknown,
+  options: {
+    fallback: number
+    max: number
+    min: number
+  },
+): number {
+  if (
+    typeof value !== "number"
+    || !Number.isFinite(value)
+    || !Number.isInteger(value)
+  ) {
+    return options.fallback
+  }
+
+  return Math.min(options.max, Math.max(options.min, value))
+}
+
+function normalizeStringList(value: unknown): Array<string> {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const deduplicated = new Set<string>()
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      continue
+    }
+
+    const normalized = entry.trim()
+    if (!normalized) {
+      continue
+    }
+
+    deduplicated.add(normalized)
+  }
+
+  return Array.from(deduplicated)
+}
+
+export function normalizeAccountSelectionConfig(
+  accountSelection: unknown,
+  accounts: ReadonlyArray<{ id: string }> = [],
+): ResolvedAccountSelectionConfig {
+  const raw =
+    accountSelection && typeof accountSelection === "object" ?
+      (accountSelection as Record<string, unknown>)
+    : {}
+  const knownAccountIds = new Set(accounts.map((account) => account.id))
+  const selectedAccountIds = normalizeStringList(raw.selectedAccountIds).filter(
+    (accountId) => knownAccountIds.has(accountId),
+  )
+
+  return {
+    mode:
+      isValidAccountSelectionMode(raw.mode) ?
+        raw.mode
+      : defaultAccountSelectionConfig.mode,
+    poolScope:
+      isValidAccountPoolScope(raw.poolScope) ?
+        raw.poolScope
+      : defaultAccountSelectionConfig.poolScope,
+    selectedAccountIds,
+    stickySessions:
+      typeof raw.stickySessions === "boolean" ?
+        raw.stickySessions
+      : defaultAccountSelectionConfig.stickySessions,
+    stickySessionTtlMinutes: normalizeIntegerInRange(
+      raw.stickySessionTtlMinutes,
+      {
+        fallback: defaultAccountSelectionConfig.stickySessionTtlMinutes,
+        max: ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MAX,
+        min: ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MIN,
+      },
+    ),
+    failoverOnRequestError:
+      typeof raw.failoverOnRequestError === "boolean" ?
+        raw.failoverOnRequestError
+      : defaultAccountSelectionConfig.failoverOnRequestError,
+    selectorStrategy:
+      isValidAccountSelectorStrategy(raw.selectorStrategy) ?
+        raw.selectorStrategy
+      : defaultAccountSelectionConfig.selectorStrategy,
+  }
 }
 
 export function getContextManagementConfig(): ResolvedContextManagementConfig {
@@ -366,6 +534,62 @@ function mergeDefaultUsageLogCountMode(config: AppConfig): {
   }
 }
 
+function isSameAccountSelectionConfig(
+  left: ResolvedAccountSelectionConfig | AccountSelectionConfig | undefined,
+  right: ResolvedAccountSelectionConfig,
+): boolean {
+  if (!left) {
+    return false
+  }
+
+  return (
+    left.mode === right.mode
+    && left.poolScope === right.poolScope
+    && isSameStringList(left.selectedAccountIds, right.selectedAccountIds)
+    && left.stickySessions === right.stickySessions
+    && left.stickySessionTtlMinutes === right.stickySessionTtlMinutes
+    && left.failoverOnRequestError === right.failoverOnRequestError
+    && left.selectorStrategy === right.selectorStrategy
+  )
+}
+
+function isSameStringList(
+  left: Array<string> | undefined,
+  right: Array<string>,
+): boolean {
+  if (!left || left.length !== right.length) {
+    return false
+  }
+
+  return left.every((value, index) => value === right[index])
+}
+
+function mergeDefaultAccountSelectionConfig(config: AppConfig): {
+  mergedConfig: AppConfig
+  changed: boolean
+} {
+  const accountSelection = normalizeAccountSelectionConfig(
+    config.accountSelection,
+    config.accounts ?? [],
+  )
+  const changed = !isSameAccountSelectionConfig(
+    config.accountSelection,
+    accountSelection,
+  )
+
+  if (!changed) {
+    return { mergedConfig: config, changed: false }
+  }
+
+  return {
+    mergedConfig: {
+      ...config,
+      accountSelection,
+    },
+    changed: true,
+  }
+}
+
 function normalizeAdminAuthConfig(
   adminAuth: AdminAuthConfig | undefined,
 ): AdminAuthConfig {
@@ -429,12 +653,16 @@ export function mergeConfigWithDefaults(): AppConfig {
   const usageLogCountModeMergeResult = mergeDefaultUsageLogCountMode(
     adminAuthMergeResult.mergedConfig,
   )
-  const mergedConfig = usageLogCountModeMergeResult.mergedConfig
+  const accountSelectionMergeResult = mergeDefaultAccountSelectionConfig(
+    usageLogCountModeMergeResult.mergedConfig,
+  )
+  const mergedConfig = accountSelectionMergeResult.mergedConfig
   const changed =
     extraPromptMergeResult.changed
     || premiumMultiplierMergeResult.changed
     || adminAuthMergeResult.changed
     || usageLogCountModeMergeResult.changed
+    || accountSelectionMergeResult.changed
 
   let effectiveConfig = mergedConfig
   if (changed) {
@@ -547,11 +775,25 @@ export function getUsageLogCountMode(): UsageLogCountMode {
   return normalizeUsageLogCountMode(getConfig().usageLogCountMode)
 }
 
+export function getAccountSelectionConfig(): ResolvedAccountSelectionConfig {
+  const config = getConfig()
+  return normalizeAccountSelectionConfig(
+    config.accountSelection,
+    config.accounts ?? [],
+  )
+}
+
 function normalizeConfig(config: AppConfig | ReadonlyAppConfig): AppConfig {
+  const clonedConfig = cloneConfig(config)
+
   return {
-    ...cloneConfig(config),
+    ...clonedConfig,
     adminAuth: normalizeAdminAuthConfig(config.adminAuth),
     usageLogCountMode: normalizeUsageLogCountMode(config.usageLogCountMode),
+    accountSelection: normalizeAccountSelectionConfig(
+      config.accountSelection,
+      clonedConfig.accounts ?? [],
+    ),
   } satisfies AppConfig
 }
 

@@ -1,4 +1,5 @@
 export const adminQueryKeys = {
+  accountSelection: ["admin", "account-selection"] as const,
   accounts: ["admin", "accounts"] as const,
   authStatus: ["admin", "auth-status"] as const,
   mappings: ["admin", "mappings"] as const,

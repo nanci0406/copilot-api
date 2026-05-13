@@ -1,8 +1,17 @@
 <script setup lang="ts">
+import type {
+  AccountPoolScope,
+  AccountSelectionMode,
+  AccountSelectorStrategy,
+} from "@copilot-api/admin-contracts"
 import { useQuery, useQueryClient } from "@tanstack/vue-query"
-import { reactive, watch } from "vue"
+import { computed, reactive, watch } from "vue"
 import { useI18n } from "vue-i18n"
 
+import {
+  fetchAccountSelection,
+  updateAccountSelection,
+} from "@/api/account-selection"
 import { fetchAdminSettings, updateAdminSettings } from "@/api/settings"
 import { adminQueryKeys } from "@/query/keys"
 import { useNoticeStore } from "@/stores/notices"
@@ -16,8 +25,27 @@ const settingsQuery = useQuery({
   queryKey: adminQueryKeys.settings,
   queryFn: fetchAdminSettings,
 })
+const accountSelectionQuery = useQuery({
+  queryKey: adminQueryKeys.accountSelection,
+  queryFn: fetchAccountSelection,
+})
+
+const isLoading = computed(
+  () =>
+    settingsQuery.isLoading.value || accountSelectionQuery.isLoading.value,
+)
+const accountSelectionAccounts = computed(
+  () => accountSelectionQuery.data.value?.accounts ?? [],
+)
 
 const form = reactive({
+  accountPoolScope: "all_accounts" as AccountPoolScope,
+  accountSelectionFailoverOnRequestError: false,
+  accountSelectionMode: "active_only" as AccountSelectionMode,
+  accountSelectionSelectedAccountIds: [] as Array<string>,
+  accountSelectionStickySessions: true,
+  accountSelectionStickySessionTtlMinutes: "",
+  accountSelectorStrategy: "least_recently_used" as AccountSelectorStrategy,
   adminSessionTtlDays: "",
   anthropicApiKey: "",
   authApiKey: "",
@@ -31,6 +59,34 @@ const form = reactive({
   usageLogCountMode: "request",
   usageTestIntervalMinutes: "",
 })
+
+watch(
+  () => accountSelectionQuery.data.value,
+  (data) => {
+    if (!data) {
+      return
+    }
+
+    const accountSelection = data.accountSelection
+    form.accountPoolScope = accountSelection.poolScope
+    form.accountSelectionFailoverOnRequestError =
+      accountSelection.failoverOnRequestError
+    form.accountSelectionMode = accountSelection.mode
+    form.accountSelectionSelectedAccountIds.splice(
+      0,
+      form.accountSelectionSelectedAccountIds.length,
+      ...accountSelection.selectedAccountIds,
+    )
+    form.accountSelectionStickySessions = accountSelection.stickySessions
+    form.accountSelectionStickySessionTtlMinutes = String(
+      accountSelection.stickySessionTtlMinutes,
+    )
+    form.accountSelectorStrategy = accountSelection.selectorStrategy
+  },
+  {
+    immediate: true,
+  },
+)
 
 watch(
   () => settingsQuery.data.value,
@@ -69,6 +125,28 @@ function parseNullableNumber(value: string): number | null {
   return Number(value)
 }
 
+function parseOptionalNumber(value: string): number | undefined {
+  if (!value.trim()) {
+    return undefined
+  }
+
+  return Number(value)
+}
+
+function buildAccountSelectionPayload(): Record<string, unknown> {
+  return {
+    mode: form.accountSelectionMode,
+    poolScope: form.accountPoolScope,
+    selectedAccountIds: [...form.accountSelectionSelectedAccountIds],
+    stickySessions: form.accountSelectionStickySessions,
+    stickySessionTtlMinutes: parseOptionalNumber(
+      form.accountSelectionStickySessionTtlMinutes,
+    ),
+    failoverOnRequestError: form.accountSelectionFailoverOnRequestError,
+    selectorStrategy: form.accountSelectorStrategy,
+  }
+}
+
 async function save(payload: Record<string, unknown>) {
   try {
     await updateAdminSettings(payload)
@@ -82,22 +160,45 @@ async function save(payload: Record<string, unknown>) {
 }
 
 async function submit(): Promise<void> {
-  await save({
-    adminSessionTtlDays: parseNullableNumber(form.adminSessionTtlDays),
-    anthropicApiKey: form.anthropicApiKey.trim() || null,
-    authApiKey: form.authApiKey.trim() || null,
-    contextManagement: {
-      enabled: form.contextEnabled,
-      keepRecentTurns: parseNullableNumber(form.contextKeepRecentTurns),
-      summarizeAtPercent: parseNullableNumber(form.contextSummarizeAtPercent),
-      summarizerModel: form.contextSummarizerModel.trim() || null,
-    },
-    disableHiddenModels: form.disableHiddenModels,
-    rateLimitSeconds: parseNullableNumber(form.rateLimitSeconds),
-    rateLimitWait: form.rateLimitWait,
-    usageLogCountMode: form.usageLogCountMode,
-    usageTestIntervalMinutes: parseNullableNumber(form.usageTestIntervalMinutes),
-  })
+  if (!accountSelectionQuery.data.value) {
+    noticeStore.error(t("settings.accountSelectionLoadFailed"))
+    return
+  }
+
+  try {
+    await updateAccountSelection(buildAccountSelectionPayload())
+    await updateAdminSettings({
+      adminSessionTtlDays: parseNullableNumber(form.adminSessionTtlDays),
+      anthropicApiKey: form.anthropicApiKey.trim() || null,
+      authApiKey: form.authApiKey.trim() || null,
+      contextManagement: {
+        enabled: form.contextEnabled,
+        keepRecentTurns: parseNullableNumber(form.contextKeepRecentTurns),
+        summarizeAtPercent: parseNullableNumber(
+          form.contextSummarizeAtPercent,
+        ),
+        summarizerModel: form.contextSummarizerModel.trim() || null,
+      },
+      disableHiddenModels: form.disableHiddenModels,
+      rateLimitSeconds: parseNullableNumber(form.rateLimitSeconds),
+      rateLimitWait: form.rateLimitWait,
+      usageLogCountMode: form.usageLogCountMode,
+      usageTestIntervalMinutes: parseNullableNumber(
+        form.usageTestIntervalMinutes,
+      ),
+    })
+    noticeStore.success(t("settings.saveSuccess"))
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.settings,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.accountSelection,
+      }),
+    ])
+  } catch (error) {
+    noticeStore.error(getErrorMessage(error, t("settings.saveFailed")))
+  }
 }
 
 async function clearAnthropicApiKey(): Promise<void> {
@@ -128,7 +229,7 @@ async function clearAuthApiKey(): Promise<void> {
         </div>
       </div>
 
-      <div v-if="settingsQuery.isLoading.value" class="empty-state">
+      <div v-if="isLoading" class="empty-state">
         {{ t("common.loading") }}
       </div>
 
@@ -181,6 +282,97 @@ async function clearAuthApiKey(): Promise<void> {
             </label>
           </div>
           <p class="hint">{{ t("settings.contextCompressionCostHint") }}</p>
+        </div>
+
+        <div class="settings-section settings-context-section">
+          <div class="settings-title-row">
+            <div class="settings-section-title">{{ t("settings.accountSelectionTitle") }}</div>
+          </div>
+          <div class="settings-context-options">
+            <label class="settings-field">
+              <span>{{ t("settings.accountSelectionMode") }}</span>
+              <select v-model="form.accountSelectionMode" class="select">
+                <option value="active_only">{{ t("settings.accountSelectionModeActiveOnly") }}</option>
+                <option value="account_pool">{{ t("settings.accountSelectionModeAccountPool") }}</option>
+              </select>
+            </label>
+            <label class="settings-field">
+              <span>{{ t("settings.accountPoolScope") }}</span>
+              <select v-model="form.accountPoolScope" class="select">
+                <option value="all_accounts">{{ t("settings.accountPoolScopeAll") }}</option>
+                <option value="selected_accounts">{{ t("settings.accountPoolScopeSelected") }}</option>
+              </select>
+            </label>
+            <label class="settings-field">
+              <span>{{ t("settings.accountSelectorStrategy") }}</span>
+              <select v-model="form.accountSelectorStrategy" class="select">
+                <option value="least_recently_used">{{ t("settings.accountSelectorLeastRecentlyUsed") }}</option>
+                <option value="round_robin">{{ t("settings.accountSelectorRoundRobin") }}</option>
+                <option value="quota_aware">{{ t("settings.accountSelectorQuotaAware") }}</option>
+              </select>
+            </label>
+          </div>
+          <label
+            v-if="form.accountPoolScope === 'selected_accounts'"
+            class="settings-field"
+          >
+            <span>{{ t("settings.accountSelectionSelectedAccounts") }}</span>
+            <select
+              v-model="form.accountSelectionSelectedAccountIds"
+              class="select"
+              multiple
+              size="4"
+            >
+              <option
+                v-if="accountSelectionAccounts.length === 0"
+                disabled
+                value=""
+              >
+                {{ t("settings.accountSelectionNoAccounts") }}
+              </option>
+              <option
+                v-for="account in accountSelectionAccounts"
+                :key="account.id"
+                :value="account.id"
+              >
+                {{ account.login }} - {{ account.accountType }}
+                {{ account.isActive ? ` - ${t("common.active")}` : "" }}
+              </option>
+            </select>
+          </label>
+          <div class="settings-context-options">
+            <label class="settings-field">
+              <span>{{ t("settings.accountSelectionStickyTtl") }}</span>
+              <input
+                v-model="form.accountSelectionStickySessionTtlMinutes"
+                class="input"
+                type="number"
+                min="5"
+                max="10080"
+              >
+            </label>
+          </div>
+          <label class="settings-switch-row settings-switch-row-compact">
+            <span class="settings-switch-copy">
+              <span class="settings-switch-title">{{ t("settings.accountSelectionStickySessions") }}</span>
+              <span class="settings-switch-hint">{{ t("settings.accountSelectionStickySessionsHint") }}</span>
+            </span>
+            <span class="settings-switch">
+              <input v-model="form.accountSelectionStickySessions" type="checkbox">
+              <span class="settings-switch-slider" />
+            </span>
+          </label>
+          <label class="settings-switch-row settings-switch-row-compact">
+            <span class="settings-switch-copy">
+              <span class="settings-switch-title">{{ t("settings.accountSelectionFailover") }}</span>
+              <span class="settings-switch-hint">{{ t("settings.accountSelectionFailoverHint") }}</span>
+            </span>
+            <span class="settings-switch">
+              <input v-model="form.accountSelectionFailoverOnRequestError" type="checkbox">
+              <span class="settings-switch-slider" />
+            </span>
+          </label>
+          <p class="hint">{{ t("settings.accountSelectionRuntimeHint") }}</p>
         </div>
 
         <div class="settings-section settings-key-section">

@@ -27,16 +27,26 @@ import {
   verifyAdminSecret,
 } from "~/lib/admin-auth"
 import {
+  ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MAX,
+  ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MIN,
   getConfig,
+  getAccountSelectionConfig,
   getContextManagementConfig,
   getReasoningEffortForModel,
   getUsageLogCountMode,
+  isValidAccountPoolScope,
+  isValidAccountSelectionMode,
+  isValidAccountSelectorStrategy,
   isValidReasoningEffort,
   isValidUsageLogCountMode,
+  normalizeAccountSelectionConfig,
   updateConfig,
+  type AccountPoolScope,
+  type AccountSelectionMode,
   type ContextManagementConfig,
   type ModelCardMetadata,
   type ReasoningEffort,
+  type ResolvedAccountSelectionConfig,
   type UsageLogCountMode,
 } from "~/lib/config"
 import { copilotTokenManager } from "~/lib/copilot-token-manager"
@@ -131,6 +141,16 @@ interface AdminSettingsRequestBody {
   clearAnthropicApiKey?: boolean
   authApiKey?: string | null
   clearAuthApiKey?: boolean
+}
+
+interface AccountSelectionRequestBody {
+  mode?: unknown
+  poolScope?: unknown
+  selectedAccountIds?: unknown
+  stickySessions?: unknown
+  stickySessionTtlMinutes?: unknown
+  failoverOnRequestError?: unknown
+  selectorStrategy?: unknown
 }
 
 interface AdminLoginRequestBody {
@@ -793,6 +813,288 @@ function createValidationErrorResponse(c: Context, message: string): Response {
   )
 }
 
+function getAccountSelectionAccount(
+  account: Account,
+  activeAccountId: string | null,
+): {
+  id: string
+  login: string
+  avatarUrl: string
+  accountType: "individual" | "business" | "enterprise"
+  createdAt: string
+  isActive: boolean
+} {
+  return {
+    id: account.id,
+    login: account.login,
+    avatarUrl: account.avatarUrl,
+    accountType: account.accountType,
+    createdAt: account.createdAt,
+    isActive: account.id === activeAccountId,
+  }
+}
+
+async function getAccountSelectionResponse(): Promise<{
+  accountSelection: ResolvedAccountSelectionConfig
+  accounts: Array<ReturnType<typeof getAccountSelectionAccount>>
+}> {
+  const data = await getAccounts()
+  return {
+    accountSelection: normalizeAccountSelectionConfig(
+      getConfig().accountSelection,
+      data.accounts,
+    ),
+    accounts: data.accounts.map((account) =>
+      getAccountSelectionAccount(account, data.activeAccountId),
+    ),
+  }
+}
+
+function isValidIntegerInRange(
+  value: unknown,
+  min: number,
+  max: number,
+): value is number {
+  return (
+    typeof value === "number"
+    && Number.isFinite(value)
+    && Number.isInteger(value)
+    && value >= min
+    && value <= max
+  )
+}
+
+const BOOLEAN_ACCOUNT_SELECTION_FIELDS: Array<{
+  key: "failoverOnRequestError" | "stickySessions"
+  name: string
+}> = [
+  { key: "stickySessions", name: '"stickySessions"' },
+  { key: "failoverOnRequestError", name: '"failoverOnRequestError"' },
+]
+
+function validateBooleanAccountSelectionFields(
+  body: AccountSelectionRequestBody,
+): string | null {
+  for (const field of BOOLEAN_ACCOUNT_SELECTION_FIELDS) {
+    const value = body[field.key]
+    if (value !== undefined && typeof value !== "boolean") {
+      return `${field.name} must be a boolean`
+    }
+  }
+
+  return null
+}
+
+function validateAccountSelectionScalarFields(
+  body: AccountSelectionRequestBody,
+): string | null {
+  if (body.mode !== undefined && !isValidAccountSelectionMode(body.mode)) {
+    return '"mode" must be either "active_only" or "account_pool"'
+  }
+
+  if (
+    body.poolScope !== undefined
+    && !isValidAccountPoolScope(body.poolScope)
+  ) {
+    return '"poolScope" must be either "all_accounts" or "selected_accounts"'
+  }
+
+  const booleanFieldError = validateBooleanAccountSelectionFields(body)
+  if (booleanFieldError) {
+    return booleanFieldError
+  }
+
+  if (
+    body.stickySessionTtlMinutes !== undefined
+    && !isValidIntegerInRange(
+      body.stickySessionTtlMinutes,
+      ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MIN,
+      ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MAX,
+    )
+  ) {
+    return `"stickySessionTtlMinutes" must be an integer between ${ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MIN} and ${ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MAX}`
+  }
+
+  if (
+    body.selectorStrategy !== undefined
+    && !isValidAccountSelectorStrategy(body.selectorStrategy)
+  ) {
+    return '"selectorStrategy" must be "least_recently_used", "round_robin", or "quota_aware"'
+  }
+
+  return null
+}
+
+function resolveSelectedAccountIds(
+  body: AccountSelectionRequestBody,
+  current: ResolvedAccountSelectionConfig,
+):
+  | {
+      errorMessage: string
+    }
+  | {
+      selectedAccountIds: Array<string>
+    } {
+  if (body.selectedAccountIds === undefined) {
+    return { selectedAccountIds: current.selectedAccountIds }
+  }
+
+  if (
+    !Array.isArray(body.selectedAccountIds)
+    || body.selectedAccountIds.some(
+      (accountId) => typeof accountId !== "string",
+    )
+  ) {
+    return {
+      errorMessage: '"selectedAccountIds" must be an array of strings',
+    }
+  }
+
+  return {
+    selectedAccountIds: normalizeStringList(body.selectedAccountIds),
+  }
+}
+
+function getUnknownAccountIds(
+  selectedAccountIds: Array<string>,
+  accounts: Array<Account>,
+): Array<string> {
+  const knownAccountIds = new Set(accounts.map((account) => account.id))
+  return selectedAccountIds.filter(
+    (accountId) => !knownAccountIds.has(accountId),
+  )
+}
+
+function resolveAccountSelectionModeValue(
+  value: unknown,
+  fallback: AccountSelectionMode,
+): AccountSelectionMode {
+  return isValidAccountSelectionMode(value) ? value : fallback
+}
+
+function resolveAccountPoolScopeValue(
+  value: unknown,
+  fallback: AccountPoolScope,
+): AccountPoolScope {
+  return isValidAccountPoolScope(value) ? value : fallback
+}
+
+function buildAccountSelectionCandidate(options: {
+  accounts: Array<Account>
+  body: AccountSelectionRequestBody
+  current: ResolvedAccountSelectionConfig
+  selectedAccountIds: Array<string>
+}): ResolvedAccountSelectionConfig {
+  const { accounts, body, current, selectedAccountIds } = options
+
+  return normalizeAccountSelectionConfig(
+    {
+      mode: resolveAccountSelectionModeValue(body.mode, current.mode),
+      poolScope: resolveAccountPoolScopeValue(
+        body.poolScope,
+        current.poolScope,
+      ),
+      selectedAccountIds,
+      stickySessions:
+        typeof body.stickySessions === "boolean" ?
+          body.stickySessions
+        : current.stickySessions,
+      stickySessionTtlMinutes:
+        (
+          isValidIntegerInRange(
+            body.stickySessionTtlMinutes,
+            ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MIN,
+            ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MAX,
+          )
+        ) ?
+          body.stickySessionTtlMinutes
+        : current.stickySessionTtlMinutes,
+      failoverOnRequestError:
+        typeof body.failoverOnRequestError === "boolean" ?
+          body.failoverOnRequestError
+        : current.failoverOnRequestError,
+      selectorStrategy:
+        isValidAccountSelectorStrategy(body.selectorStrategy) ?
+          body.selectorStrategy
+        : current.selectorStrategy,
+    },
+    accounts,
+  )
+}
+
+function validateAccountSelectionCandidates(
+  accountSelection: ResolvedAccountSelectionConfig,
+  accounts: Array<Account>,
+): string | null {
+  if (
+    accountSelection.poolScope === "selected_accounts"
+    && accountSelection.selectedAccountIds.length === 0
+  ) {
+    return '"selectedAccountIds" must contain at least one existing account when "poolScope" is "selected_accounts"'
+  }
+
+  const accountPoolCandidateCount =
+    accountSelection.poolScope === "all_accounts" ?
+      accounts.length
+    : accountSelection.selectedAccountIds.length
+  if (
+    accountSelection.mode === "account_pool"
+    && accountPoolCandidateCount === 0
+  ) {
+    return '"account_pool" mode requires at least one available account'
+  }
+
+  return null
+}
+
+function resolveAccountSelectionBody(
+  c: Context,
+  body: AccountSelectionRequestBody,
+  accounts: Array<Account>,
+):
+  | {
+      accountSelection: ResolvedAccountSelectionConfig
+    }
+  | Response {
+  const scalarFieldError = validateAccountSelectionScalarFields(body)
+  if (scalarFieldError) {
+    return createValidationErrorResponse(c, scalarFieldError)
+  }
+
+  const current = getAccountSelectionConfig()
+  const selectedResult = resolveSelectedAccountIds(body, current)
+  if ("errorMessage" in selectedResult) {
+    return createValidationErrorResponse(c, selectedResult.errorMessage)
+  }
+
+  const unknownAccountIds = getUnknownAccountIds(
+    selectedResult.selectedAccountIds,
+    accounts,
+  )
+  if (unknownAccountIds.length > 0) {
+    return createValidationErrorResponse(
+      c,
+      `Unknown account ids: ${unknownAccountIds.join(", ")}`,
+    )
+  }
+
+  const accountSelection = buildAccountSelectionCandidate({
+    accounts,
+    body,
+    current,
+    selectedAccountIds: selectedResult.selectedAccountIds,
+  })
+  const candidateError = validateAccountSelectionCandidates(
+    accountSelection,
+    accounts,
+  )
+  if (candidateError) {
+    return createValidationErrorResponse(c, candidateError)
+  }
+
+  return { accountSelection }
+}
+
 function validateAdminSettings(
   c: Context,
   body: AdminSettingsRequestBody,
@@ -1302,6 +1604,33 @@ adminApiRoutes.delete("/api/accounts/:id", async (c) => {
   }
 
   return c.json({ success: true })
+})
+
+adminApiRoutes.get("/api/account-selection", async (c) => {
+  return c.json(await getAccountSelectionResponse())
+})
+
+adminApiRoutes.put("/api/account-selection", async (c) => {
+  const body = await c.req.json<AccountSelectionRequestBody>()
+  const accountsData = await getAccounts()
+  const result = resolveAccountSelectionBody(c, body, accountsData.accounts)
+
+  if (result instanceof Response) {
+    return result
+  }
+
+  await updateConfig((config) => ({
+    ...config,
+    accountSelection: normalizeAccountSelectionConfig(
+      result.accountSelection,
+      config.accounts ?? [],
+    ),
+  }))
+
+  return c.json({
+    success: true,
+    ...(await getAccountSelectionResponse()),
+  })
 })
 
 // Initiate device code flow for adding new account
