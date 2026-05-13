@@ -1,4 +1,5 @@
 ﻿/* eslint-disable max-lines */
+import consola from "consola"
 import { Hono, type Context } from "hono"
 
 import {
@@ -50,6 +51,7 @@ import {
   type UsageLogCountMode,
 } from "~/lib/config"
 import { copilotTokenManager } from "~/lib/copilot-token-manager"
+import { HTTPError } from "~/lib/error"
 import { normalizeApiKeys } from "~/lib/request-auth"
 import { runtimeManager } from "~/lib/runtime-manager"
 import { state } from "~/lib/state"
@@ -68,7 +70,10 @@ import {
 } from "~/services/github/get-copilot-usage"
 import { getDeviceCode } from "~/services/github/get-device-code"
 import { getGitHubUser } from "~/services/github/get-user"
-import { pollAccessTokenOnce } from "~/services/github/poll-access-token"
+import {
+  pollAccessTokenOnce,
+  type PollResult,
+} from "~/services/github/poll-access-token"
 
 export const adminApiRoutes = new Hono()
 
@@ -810,6 +815,70 @@ function createValidationErrorResponse(c: Context, message: string): Response {
       },
     },
     400,
+  )
+}
+
+function truncateErrorDetail(value: string): string {
+  const normalized = value.replaceAll(/\s+/g, " ").trim()
+  return normalized.length > 300 ? `${normalized.slice(0, 300)}...` : normalized
+}
+
+function stringifyUnknownErrorObject(error: object): string {
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return Object.prototype.toString.call(error)
+  }
+}
+
+async function describeGitHubAuthError(error: unknown): Promise<string> {
+  if (error instanceof HTTPError) {
+    const responseText = await error.response.text().catch(() => "")
+    const detail = responseText ? ` - ${truncateErrorDetail(responseText)}` : ""
+    return `${error.message}: GitHub responded ${error.response.status}${detail}`
+  }
+
+  if (!error || typeof error !== "object") {
+    return String(error)
+  }
+
+  const details: Array<string> = []
+  const message = (error as { message?: unknown }).message
+  const code = (error as { code?: unknown }).code
+  const path = (error as { path?: unknown }).path
+
+  if (typeof message === "string" && message) {
+    details.push(message)
+  }
+  if (typeof code === "string" && code) {
+    details.push(`code=${code}`)
+  }
+  if (typeof path === "string" && path) {
+    details.push(`path=${path}`)
+  }
+
+  return details.length > 0 ?
+      details.join("; ")
+    : stringifyUnknownErrorObject(error)
+}
+
+async function createAuthErrorResponse(
+  c: Context,
+  action: string,
+  error: unknown,
+): Promise<Response> {
+  const detail = await describeGitHubAuthError(error)
+  const message = `${action}: ${detail}`
+  consola.error(`[AdminAuth] ${message}`, error)
+
+  return c.json(
+    {
+      error: {
+        message,
+        type: "auth_error",
+      },
+    },
+    500,
   )
 }
 
@@ -1645,16 +1714,8 @@ adminApiRoutes.post("/api/auth/device-code", async (c) => {
       expiresIn: response.expires_in,
       interval: response.interval,
     })
-  } catch {
-    return c.json(
-      {
-        error: {
-          message: "Failed to get device code",
-          type: "auth_error",
-        },
-      },
-      500,
-    )
+  } catch (error) {
+    return await createAuthErrorResponse(c, "Failed to get device code", error)
   }
 })
 
@@ -1678,8 +1739,10 @@ async function createAccountFromToken(
   let user
   try {
     user = await getGitHubUser(token)
-  } catch {
-    return { success: false, error: "Failed to get user info" }
+  } catch (error) {
+    const detail = await describeGitHubAuthError(error)
+    consola.error(`[AdminAuth] Failed to get user info: ${detail}`, error)
+    return { success: false, error: `Failed to get user info: ${detail}` }
   }
 
   const resolvedAccountType =
@@ -1702,10 +1765,15 @@ async function createAccountFromToken(
   if (shouldActivateAccount) {
     try {
       candidateContext = await runtimeManager.prepareAccountContext(account)
-    } catch {
+    } catch (error) {
+      const detail = await describeGitHubAuthError(error)
+      consola.error(
+        `[AdminAuth] Failed to prepare runtime for the first account: ${detail}`,
+        error,
+      )
       return {
         success: false,
-        error: "Failed to prepare runtime for the first account",
+        error: `Failed to prepare runtime for the first account: ${detail}`,
       }
     }
   }
@@ -1736,7 +1804,16 @@ adminApiRoutes.post("/api/auth/poll", async (c) => {
     )
   }
 
-  const result = await pollAccessTokenOnce(body.deviceCode)
+  let result: PollResult
+  try {
+    result = await pollAccessTokenOnce(body.deviceCode)
+  } catch (error) {
+    return await createAuthErrorResponse(
+      c,
+      "Failed to poll GitHub authorization",
+      error,
+    )
+  }
 
   if (result.status === "pending") {
     return c.json({ pending: true, message: "Waiting for user authorization" })
