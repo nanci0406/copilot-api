@@ -8,7 +8,6 @@ import { ensurePaths } from "./lib/paths"
 import { initProxyFromEnv } from "./lib/proxy"
 import { initializeStartupRuntime } from "./lib/startup-runtime"
 import { state } from "./lib/state"
-import { initGithubTlsFromEnv } from "./lib/tls"
 import { cacheVSCodeVersion } from "./lib/utils"
 
 // Configuration from environment variables
@@ -30,7 +29,6 @@ async function main(): Promise<void> {
   if (PROXY_ENV) {
     initProxyFromEnv()
   }
-  initGithubTlsFromEnv()
 
   state.isDevelopment = IS_DEVELOPMENT
   state.verbose = VERBOSE
