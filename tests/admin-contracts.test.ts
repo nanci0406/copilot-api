@@ -89,6 +89,8 @@ describe("admin contracts", () => {
       "PUT /api/accounts/reorder",
       "POST /api/accounts/:id/activate",
       "DELETE /api/accounts/:id",
+      "GET /api/account-selection",
+      "PUT /api/account-selection",
       "POST /api/auth/device-code",
       "POST /api/auth/poll",
       "GET /api/auth/status",

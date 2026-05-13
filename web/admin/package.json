@@ -13,8 +13,13 @@
   },
   "dependencies": {
     "@copilot-api/admin-contracts": "workspace:*",
+    "@tanstack/vue-query": "^5.100.10",
     "dompurify": "^3.4.2",
-    "marked": "^18.0.3"
+    "marked": "^18.0.3",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.34",
+    "vue-i18n": "^11.4.2",
+    "vue-router": "^5.0.6"
   },
   "devDependencies": {
     "@types/node": "^25.7.0",
