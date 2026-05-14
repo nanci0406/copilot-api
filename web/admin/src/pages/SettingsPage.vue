@@ -58,6 +58,10 @@ const form = reactive({
   usageTestIntervalMinutes: "",
 })
 
+const isAccountPoolMode = computed(
+  () => form.accountSelectionMode === "account_pool",
+)
+
 watch(
   () => accountSelectionQuery.data.value,
   (data) => {
@@ -284,105 +288,6 @@ async function clearAuthApiKey(): Promise<void> {
           <p class="hint">{{ t("settings.contextCompressionCostHint") }}</p>
         </div>
 
-        <div class="settings-section settings-context-section">
-          <div class="settings-title-row">
-            <div class="settings-section-title">{{ t("settings.accountSelectionTitle") }}</div>
-          </div>
-          <div v-if="accountSelectionQuery.isLoading.value" class="notice settings-notice">
-            {{ t("common.loading") }}
-          </div>
-          <div v-else-if="accountSelectionQuery.isError.value" class="notice settings-notice">
-            {{ t("settings.accountSelectionLoadFailed") }}
-          </div>
-          <template v-else>
-            <div class="settings-context-options">
-              <label class="settings-field">
-                <span>{{ t("settings.accountSelectionMode") }}</span>
-                <select v-model="form.accountSelectionMode" class="select">
-                  <option value="active_only">{{ t("settings.accountSelectionModeActiveOnly") }}</option>
-                  <option value="account_pool">{{ t("settings.accountSelectionModeAccountPool") }}</option>
-                </select>
-              </label>
-              <label class="settings-field">
-                <span>{{ t("settings.accountPoolScope") }}</span>
-                <select v-model="form.accountPoolScope" class="select">
-                  <option value="all_accounts">{{ t("settings.accountPoolScopeAll") }}</option>
-                  <option value="selected_accounts">{{ t("settings.accountPoolScopeSelected") }}</option>
-                </select>
-              </label>
-              <label class="settings-field">
-                <span>{{ t("settings.accountSelectorStrategy") }}</span>
-                <select v-model="form.accountSelectorStrategy" class="select">
-                  <option value="least_recently_used">{{ t("settings.accountSelectorLeastRecentlyUsed") }}</option>
-                  <option value="round_robin">{{ t("settings.accountSelectorRoundRobin") }}</option>
-                  <option value="quota_aware">{{ t("settings.accountSelectorQuotaAware") }}</option>
-                </select>
-              </label>
-            </div>
-            <label
-              v-if="form.accountPoolScope === 'selected_accounts'"
-              class="settings-field"
-            >
-              <span>{{ t("settings.accountSelectionSelectedAccounts") }}</span>
-              <select
-                v-model="form.accountSelectionSelectedAccountIds"
-                class="select"
-                multiple
-                size="4"
-              >
-                <option
-                  v-if="accountSelectionAccounts.length === 0"
-                  disabled
-                  value=""
-                >
-                  {{ t("settings.accountSelectionNoAccounts") }}
-                </option>
-                <option
-                  v-for="account in accountSelectionAccounts"
-                  :key="account.id"
-                  :value="account.id"
-                >
-                  {{ account.login }} - {{ account.accountType }}
-                  {{ account.isActive ? ` - ${t("common.active")}` : "" }}
-                </option>
-              </select>
-            </label>
-            <div class="settings-context-options">
-              <label class="settings-field">
-                <span>{{ t("settings.accountSelectionStickyTtl") }}</span>
-                <input
-                  v-model="form.accountSelectionStickySessionTtlMinutes"
-                  class="input"
-                  type="number"
-                  min="5"
-                  max="10080"
-                >
-              </label>
-            </div>
-            <label class="settings-switch-row settings-switch-row-compact">
-              <span class="settings-switch-copy">
-                <span class="settings-switch-title">{{ t("settings.accountSelectionStickySessions") }}</span>
-                <span class="settings-switch-hint">{{ t("settings.accountSelectionStickySessionsHint") }}</span>
-              </span>
-              <span class="settings-switch">
-                <input v-model="form.accountSelectionStickySessions" type="checkbox">
-                <span class="settings-switch-slider" />
-              </span>
-            </label>
-            <label class="settings-switch-row settings-switch-row-compact">
-              <span class="settings-switch-copy">
-                <span class="settings-switch-title">{{ t("settings.accountSelectionFailover") }}</span>
-                <span class="settings-switch-hint">{{ t("settings.accountSelectionFailoverHint") }}</span>
-              </span>
-              <span class="settings-switch">
-                <input v-model="form.accountSelectionFailoverOnRequestError" type="checkbox">
-                <span class="settings-switch-slider" />
-              </span>
-            </label>
-            <p class="hint">{{ t("settings.accountSelectionRuntimeHint") }}</p>
-          </template>
-        </div>
-
         <div class="settings-section settings-key-section">
           <div class="settings-title-row">
             <div class="settings-section-title">{{ t("settings.anthropicApiKey") }}</div>
@@ -457,6 +362,111 @@ async function clearAuthApiKey(): Promise<void> {
               <span class="settings-switch-slider" />
             </span>
           </label>
+        </div>
+
+        <div class="settings-section settings-context-section">
+          <div class="settings-title-row">
+            <div class="settings-section-title">{{ t("settings.accountSelectionTitle") }}</div>
+          </div>
+          <div v-if="accountSelectionQuery.isLoading.value" class="notice settings-notice">
+            {{ t("common.loading") }}
+          </div>
+          <div v-else-if="accountSelectionQuery.isError.value" class="notice settings-notice">
+            {{ t("settings.accountSelectionLoadFailed") }}
+          </div>
+          <template v-else>
+            <div class="settings-context-options">
+              <label class="settings-field">
+                <span>{{ t("settings.accountSelectionMode") }}</span>
+                <select v-model="form.accountSelectionMode" class="select">
+                  <option value="active_only">{{ t("settings.accountSelectionModeActiveOnly") }}</option>
+                  <option value="account_pool">{{ t("settings.accountSelectionModeAccountPool") }}</option>
+                </select>
+              </label>
+              <label v-if="isAccountPoolMode" class="settings-field">
+                <span>{{ t("settings.accountPoolScope") }}</span>
+                <select v-model="form.accountPoolScope" class="select">
+                  <option value="all_accounts">{{ t("settings.accountPoolScopeAll") }}</option>
+                  <option value="selected_accounts">{{ t("settings.accountPoolScopeSelected") }}</option>
+                </select>
+              </label>
+              <label v-if="isAccountPoolMode" class="settings-field">
+                <span>{{ t("settings.accountSelectorStrategy") }}</span>
+                <select v-model="form.accountSelectorStrategy" class="select">
+                  <option value="least_recently_used">{{ t("settings.accountSelectorLeastRecentlyUsed") }}</option>
+                  <option value="round_robin">{{ t("settings.accountSelectorRoundRobin") }}</option>
+                  <option value="quota_aware">{{ t("settings.accountSelectorQuotaAware") }}</option>
+                </select>
+              </label>
+            </div>
+            <label
+              v-if="isAccountPoolMode && form.accountPoolScope === 'selected_accounts'"
+              class="settings-field"
+            >
+              <span>{{ t("settings.accountSelectionSelectedAccounts") }}</span>
+              <select
+                v-model="form.accountSelectionSelectedAccountIds"
+                class="select"
+                multiple
+                size="4"
+              >
+                <option
+                  v-if="accountSelectionAccounts.length === 0"
+                  disabled
+                  value=""
+                >
+                  {{ t("settings.accountSelectionNoAccounts") }}
+                </option>
+                <option
+                  v-for="account in accountSelectionAccounts"
+                  :key="account.id"
+                  :value="account.id"
+                >
+                  {{ account.login }} - {{ account.accountType }}
+                  {{ account.isActive ? ` - ${t("common.active")}` : "" }}
+                </option>
+              </select>
+            </label>
+            <div v-if="isAccountPoolMode" class="settings-context-options">
+              <label class="settings-field">
+                <span>{{ t("settings.accountSelectionStickyTtl") }}</span>
+                <input
+                  v-model="form.accountSelectionStickySessionTtlMinutes"
+                  class="input"
+                  type="number"
+                  min="5"
+                  max="10080"
+                >
+              </label>
+            </div>
+            <label
+              v-if="isAccountPoolMode"
+              class="settings-switch-row settings-switch-row-compact"
+            >
+              <span class="settings-switch-copy">
+                <span class="settings-switch-title">{{ t("settings.accountSelectionStickySessions") }}</span>
+                <span class="settings-switch-hint">{{ t("settings.accountSelectionStickySessionsHint") }}</span>
+              </span>
+              <span class="settings-switch">
+                <input v-model="form.accountSelectionStickySessions" type="checkbox">
+                <span class="settings-switch-slider" />
+              </span>
+            </label>
+            <label
+              v-if="isAccountPoolMode"
+              class="settings-switch-row settings-switch-row-compact"
+            >
+              <span class="settings-switch-copy">
+                <span class="settings-switch-title">{{ t("settings.accountSelectionFailover") }}</span>
+                <span class="settings-switch-hint">{{ t("settings.accountSelectionFailoverHint") }}</span>
+              </span>
+              <span class="settings-switch">
+                <input v-model="form.accountSelectionFailoverOnRequestError" type="checkbox">
+                <span class="settings-switch-slider" />
+              </span>
+            </label>
+            <p class="hint">{{ t("settings.accountSelectionRuntimeHint") }}</p>
+          </template>
         </div>
       </form>
     </div>

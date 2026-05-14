@@ -306,6 +306,25 @@ describe("runtime integration", () => {
     expect(config.activeAccountId).toBe(accountB.id)
   })
 
+  test("preparing a request-level account context does not switch active runtime", async () => {
+    const firstContext =
+      await runtimeManager.getOrPrepareAccountContext(accountB)
+    const secondContext =
+      await runtimeManager.getOrPrepareAccountContext(accountB)
+
+    const modelFetchCount = fetchRecords.filter(
+      (record) => record.pathname === "/models",
+    ).length
+
+    expect(firstContext.accountId).toBe(accountB.id)
+    expect(secondContext.accountId).toBe(accountB.id)
+    expect(modelFetchCount).toBe(1)
+    expect(runtimeManager.getActiveContext()?.accountId).toBe(accountA.id)
+    expect(runtimeManager.getActiveModels()?.data[0]?.id).toBe("model-a")
+    expect(state.githubToken).toBe(accountA.token)
+    expect(state.models?.data[0]?.id).toBe("model-a")
+  })
+
   test("usage health check is triggered lazily and reused for the same account", async () => {
     const app = createTestApp("/usage")
 

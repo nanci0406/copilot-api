@@ -54,20 +54,41 @@ class RuntimeManager {
   async prepareAccountContext(
     account: Account,
   ): Promise<RuntimeAccountContext> {
-    const candidateContext: RuntimeAccountContext = {
-      accountId: account.id,
-      accountType: account.accountType,
-      githubToken: account.token,
-      login: account.login,
-      revision: this.revision + 1,
-    }
+    const candidateContext = this.createAccountContext(
+      account,
+      this.revision + 1,
+    )
 
-    await runtimeContext.run(candidateContext, async () => {
-      await copilotTokenManager.getToken(candidateContext)
-      await this.refreshModelsForContext(candidateContext, true)
+    await this.prepareContextRuntime(candidateContext, {
+      refreshModels: true,
+      refreshToken: true,
+      forceRefreshModels: true,
+      updateActiveModels: true,
     })
 
     return candidateContext
+  }
+
+  async getOrPrepareAccountContext(
+    account: Account,
+    options: {
+      refreshModels?: boolean
+      refreshToken?: boolean
+    } = {},
+  ): Promise<RuntimeAccountContext> {
+    const context =
+      this.activeContext?.accountId === account.id ?
+        this.activeContext
+      : this.createAccountContext(account, this.revision)
+
+    await this.prepareContextRuntime(context, {
+      refreshModels: options.refreshModels ?? true,
+      refreshToken: options.refreshToken ?? true,
+      forceRefreshModels: false,
+      updateActiveModels: false,
+    })
+
+    return context
   }
 
   commitActiveContext(context: RuntimeAccountContext): void {
@@ -130,6 +151,9 @@ class RuntimeManager {
   async refreshModelsForContext(
     context: RuntimeAccountContext,
     forceRefresh: boolean = false,
+    options: {
+      updateActiveModels?: boolean
+    } = {},
   ): Promise<ModelsResponse> {
     if (!forceRefresh) {
       const cachedModels = this.getCachedModels(context.accountId)
@@ -143,6 +167,7 @@ class RuntimeManager {
       return await existingRequest
     }
 
+    const updateActiveModels = options.updateActiveModels ?? true
     const refreshPromise = runtimeContext.run(context, async () => {
       const models = await getModels()
       this.modelsCache.set(context.accountId, {
@@ -150,7 +175,10 @@ class RuntimeManager {
         models,
       })
 
-      if (this.activeContext?.accountId === context.accountId) {
+      if (
+        updateActiveModels
+        && this.activeContext?.accountId === context.accountId
+      ) {
         state.models = models
       }
 
@@ -178,6 +206,45 @@ class RuntimeManager {
 
   private getCachedModels(accountId: string): ModelsResponse | undefined {
     return this.modelsCache.get(accountId)?.models
+  }
+
+  private createAccountContext(
+    account: Account,
+    revision: number,
+  ): RuntimeAccountContext {
+    return {
+      accountId: account.id,
+      accountType: account.accountType,
+      githubToken: account.token,
+      login: account.login,
+      revision,
+    }
+  }
+
+  private async prepareContextRuntime(
+    context: RuntimeAccountContext,
+    options: {
+      forceRefreshModels: boolean
+      refreshModels: boolean
+      refreshToken: boolean
+      updateActiveModels: boolean
+    },
+  ): Promise<void> {
+    await runtimeContext.run(context, async () => {
+      if (options.refreshToken) {
+        await copilotTokenManager.getToken(context)
+      }
+
+      if (options.refreshModels) {
+        await this.refreshModelsForContext(
+          context,
+          options.forceRefreshModels,
+          {
+            updateActiveModels: options.updateActiveModels,
+          },
+        )
+      }
+    })
   }
 
   private getLegacyContext(): RuntimeAccountContext | null {

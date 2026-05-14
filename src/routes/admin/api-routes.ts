@@ -1028,7 +1028,8 @@ function validateAccountSelectionCandidates(
   accounts: Array<Account>,
 ): string | null {
   if (
-    accountSelection.poolScope === "selected_accounts"
+    accountSelection.mode === "account_pool"
+    && accountSelection.poolScope === "selected_accounts"
     && accountSelection.selectedAccountIds.length === 0
   ) {
     return '"selectedAccountIds" must contain at least one existing account when "poolScope" is "selected_accounts"'
