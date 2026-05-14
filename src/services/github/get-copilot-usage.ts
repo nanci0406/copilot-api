@@ -1,4 +1,7 @@
-import { GITHUB_API_BASE_URL, githubHeaders } from "~/lib/api-config"
+import {
+  GITHUB_API_BASE_URL,
+  githubCopilotInternalHeaders,
+} from "~/lib/api-config"
 import { HTTPError } from "~/lib/error"
 import { runtimeContext } from "~/lib/runtime-context"
 import { state } from "~/lib/state"
@@ -19,7 +22,7 @@ export const getCopilotUsage = async (
   }
 
   const response = await fetch(`${GITHUB_API_BASE_URL}/copilot_internal/user`, {
-    headers: githubHeaders(githubToken),
+    headers: githubCopilotInternalHeaders(githubToken),
   })
 
   if (!response.ok) {

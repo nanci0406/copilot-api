@@ -65,7 +65,7 @@ const messages = {
       setupCopy:
         "Initialize or rotate the Admin management secret from this page.",
       setupFailed: "Unable to save the Admin secret.",
-      setupHint: "The management secret must be at least 8 characters.",
+      setupHint: "The management secret must be at least 6 characters.",
       setupSuccess: "Admin secret saved and session started.",
       setupTitle: "Admin Setup",
       submitLogin: "Sign in",
@@ -323,7 +323,7 @@ const messages = {
       setupBadge: "Admin 初始化",
       setupCopy: "在这里初始化或轮换 Admin 管理密钥。",
       setupFailed: "保存 Admin 密钥失败。",
-      setupHint: "管理密钥至少需要 8 个字符。",
+      setupHint: "管理密钥至少需要 6 个字符。",
       setupSuccess: "Admin 密钥已保存，并已自动进入后台。",
       setupTitle: "Admin 初始化",
       submitLogin: "登录",

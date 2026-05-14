@@ -12,7 +12,7 @@ const COPILOT_VERSION = "0.35.0"
 const EDITOR_PLUGIN_VERSION = `copilot-chat/${COPILOT_VERSION}`
 const USER_AGENT = `GitHubCopilotChat/${COPILOT_VERSION}`
 
-const API_VERSION = "2025-10-01"
+const COPILOT_API_VERSION = "2025-10-01"
 
 export const copilotBaseUrl = (context: {
   accountType: "individual" | "business" | "enterprise"
@@ -34,7 +34,7 @@ export const copilotHeaders = (
     "editor-plugin-version": EDITOR_PLUGIN_VERSION,
     "user-agent": USER_AGENT,
     "openai-intent": "conversation-agent",
-    "x-github-api-version": API_VERSION,
+    "x-github-api-version": COPILOT_API_VERSION,
     "x-request-id": requestId,
     "x-agent-task-id": requestId,
     "x-vscode-user-agent-library-version": "electron-fetch",
@@ -61,13 +61,20 @@ export const prepareSubagentHeaders = (
 }
 
 export const GITHUB_API_BASE_URL = "https://api.github.com"
-export const githubHeaders = (githubToken: string) => ({
+export const githubCopilotInternalHeaders = (githubToken: string) => ({
   ...standardHeaders(),
   authorization: `token ${githubToken}`,
   "editor-version": `vscode/${state.vsCodeVersion}`,
   "editor-plugin-version": EDITOR_PLUGIN_VERSION,
   "user-agent": USER_AGENT,
-  "x-github-api-version": API_VERSION,
+  "x-github-api-version": COPILOT_API_VERSION,
+  "x-vscode-user-agent-library-version": "electron-fetch",
+})
+
+export const githubRestHeaders = (githubToken: string) => ({
+  ...standardHeaders(),
+  authorization: `token ${githubToken}`,
+  "user-agent": USER_AGENT,
   "x-vscode-user-agent-library-version": "electron-fetch",
 })
 

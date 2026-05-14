@@ -5,6 +5,7 @@ import {
   validateAdminSecret,
   verifyAdminSecretHash,
 } from "../src/lib/admin-auth"
+import { DEFAULT_ADMIN_SECRET_HASH } from "../src/lib/config"
 
 describe("admin auth helpers", () => {
   test("hashes and verifies admin secret", async () => {
@@ -20,5 +21,14 @@ describe("admin auth helpers", () => {
   test("validates minimum admin secret length", () => {
     expect(validateAdminSecret("short").valid).toBe(false)
     expect(validateAdminSecret("long-enough-secret").valid).toBe(true)
+  })
+
+  test("verifies the default admin secret", async () => {
+    expect(
+      await verifyAdminSecretHash("123456", DEFAULT_ADMIN_SECRET_HASH),
+    ).toBe(true)
+    expect(
+      await verifyAdminSecretHash("wrong-secret", DEFAULT_ADMIN_SECRET_HASH),
+    ).toBe(false)
   })
 })

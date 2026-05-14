@@ -1,13 +1,16 @@
 import type { RuntimeAccountContext } from "~/lib/runtime-types"
 
-import { GITHUB_API_BASE_URL, githubHeaders } from "~/lib/api-config"
+import {
+  GITHUB_API_BASE_URL,
+  githubCopilotInternalHeaders,
+} from "~/lib/api-config"
 import { HTTPError } from "~/lib/error"
 
 export const getCopilotToken = async (context: RuntimeAccountContext) => {
   const response = await fetch(
     `${GITHUB_API_BASE_URL}/copilot_internal/v2/token`,
     {
-      headers: githubHeaders(context.githubToken),
+      headers: githubCopilotInternalHeaders(context.githubToken),
     },
   )
 

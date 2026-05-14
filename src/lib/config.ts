@@ -124,6 +124,8 @@ const gpt5ExplorationPrompt = `## Exploration and reading files
 
 export const ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MIN = 5
 export const ACCOUNT_SELECTION_STICKY_TTL_MINUTES_MAX = 10_080
+export const DEFAULT_ADMIN_SECRET_HASH =
+  "scrypt$copilot-api-default-admin-secret$OJ_hP6LAP7tmSacZWwo0HuRKE8fB9dSyrikW3Tid2Hs6eaxXXtjjDX3A2Rg_vmj5gSkOXqQDR5YSw0dlmt5HfQ"
 
 export const defaultAccountSelectionConfig: ResolvedAccountSelectionConfig = {
   mode: "active_only",
@@ -138,6 +140,7 @@ export const defaultAccountSelectionConfig: ResolvedAccountSelectionConfig = {
 const defaultConfig: AppConfig = {
   auth: {},
   adminAuth: {
+    secretHash: DEFAULT_ADMIN_SECRET_HASH,
     sessionTtlDays: 5,
     enforceHttps: true,
   },

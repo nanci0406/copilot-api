@@ -1,4 +1,5 @@
 ﻿/* eslint-disable max-lines */
+import consola from "consola"
 import { Hono, type Context } from "hono"
 
 import {
@@ -1645,11 +1646,17 @@ adminApiRoutes.post("/api/auth/device-code", async (c) => {
       expiresIn: response.expires_in,
       interval: response.interval,
     })
-  } catch {
+  } catch (error) {
+    consola.error("[AdminAuth] Failed to get device code:", error)
+    const message =
+      error instanceof Error ?
+        `Failed to get device code: ${error.message}`
+      : "Failed to get device code"
+
     return c.json(
       {
         error: {
-          message: "Failed to get device code",
+          message,
           type: "auth_error",
         },
       },
