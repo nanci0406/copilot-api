@@ -5,7 +5,7 @@ import type {
   AccountSelectorStrategy,
 } from "@copilot-api/admin-contracts"
 import { useQuery, useQueryClient } from "@tanstack/vue-query"
-import { computed, reactive, watch } from "vue"
+import { computed, reactive, ref, watch } from "vue"
 import { useI18n } from "vue-i18n"
 
 import {
@@ -13,13 +13,18 @@ import {
   updateAccountSelection,
 } from "@/api/account-selection"
 import { fetchAdminSettings, updateAdminSettings } from "@/api/settings"
+import {
+  clearAllUsageLogs,
+  clearUsageLogs,
+} from "@/api/usage"
 import { adminQueryKeys } from "@/query/keys"
 import { useNoticeStore } from "@/stores/notices"
 import { getErrorMessage } from "@/utils/errors"
 
-const { t } = useI18n()
+const { locale, t } = useI18n()
 const queryClient = useQueryClient()
 const noticeStore = useNoticeStore()
+const maintenanceBusyKey = ref("")
 
 const settingsQuery = useQuery({
   queryKey: adminQueryKeys.settings,
@@ -61,6 +66,67 @@ const form = reactive({
 const isAccountPoolMode = computed(
   () => form.accountSelectionMode === "account_pool",
 )
+
+function getMaintenanceText(
+  key:
+    | "clearAll"
+    | "clearAllConfirmMessage"
+    | "clearAllConfirmTitle"
+    | "clearAllSuccess"
+    | "clearCurrent"
+    | "clearCurrentConfirmMessage"
+    | "clearCurrentConfirmTitle"
+    | "clearCurrentFailed"
+    | "clearCurrentSuccess"
+    | "hint",
+  params?: Record<string, string | number>,
+): string {
+  const messages =
+    locale.value === "zh" ?
+      {
+        clearAll: "清理全部账户记录",
+        clearAllConfirmMessage:
+          "这会永久清空所有账号在本地保存的用量记录列表，是否继续？",
+        clearAllConfirmTitle: "清理全部账户用量记录",
+        clearAllSuccess: "已清理全部账号的 {count} 条本地用量记录。",
+        clearCurrent: "清理当前账户记录",
+        clearCurrentConfirmMessage:
+          "这会永久清空当前活跃账号在本地保存的用量记录列表，是否继续？",
+        clearCurrentConfirmTitle: "清理当前账户用量记录",
+        clearCurrentFailed: "清理用量记录失败",
+        clearCurrentSuccess: "已清理当前活跃账号的 {count} 条本地用量记录。",
+        hint:
+          "这两个按钮分别清理当前活跃账号或全部账号在 Usage 列表中的本地记录。历史月份数据也会在每月 1 号后首次写入新日志时自动清理。",
+      }
+    : {
+        clearAll: "Clear all account logs",
+        clearAllConfirmMessage:
+          "This will permanently clear the local usage log list for all accounts. Continue?",
+        clearAllConfirmTitle: "Clear all account usage logs",
+        clearAllSuccess:
+          "Cleared {count} local usage log record(s) across all accounts.",
+        clearCurrent: "Clear current account logs",
+        clearCurrentConfirmMessage:
+          "This will permanently clear the current active account's local usage log list. Continue?",
+        clearCurrentConfirmTitle: "Clear current account usage logs",
+        clearCurrentFailed: "Failed to clear usage logs.",
+        clearCurrentSuccess:
+          "Cleared {count} local usage log record(s) for the current active account.",
+        hint:
+          "These buttons clear the local Usage list for the current active account or all accounts. Historical month data is also cleaned automatically on the first new write after the 1st of each month.",
+      }
+
+  let text = messages[key]
+  if (!params) {
+    return text
+  }
+
+  for (const [paramKey, value] of Object.entries(params)) {
+    text = text.replace(`{${paramKey}}`, String(value))
+  }
+
+  return text
+}
 
 watch(
   () => accountSelectionQuery.data.value,
@@ -216,6 +282,64 @@ async function clearAuthApiKey(): Promise<void> {
     clearAuthApiKey: true,
   })
 }
+
+async function handleClearUsageLogs(): Promise<void> {
+  const confirmed = globalThis.confirm(
+    `${getMaintenanceText("clearCurrentConfirmTitle")}\n\n${getMaintenanceText("clearCurrentConfirmMessage")}`,
+  )
+  if (!confirmed) {
+    return
+  }
+
+  maintenanceBusyKey.value = "clear-current"
+
+  try {
+    const payload = await clearUsageLogs()
+    noticeStore.success(
+      getMaintenanceText("clearCurrentSuccess", {
+        count: payload.deletedCount,
+      }),
+    )
+    await queryClient.invalidateQueries({
+      queryKey: ["admin"],
+    })
+  } catch (error) {
+    noticeStore.error(
+      getErrorMessage(error, getMaintenanceText("clearCurrentFailed")),
+    )
+  } finally {
+    maintenanceBusyKey.value = ""
+  }
+}
+
+async function handleClearAllUsageLogs(): Promise<void> {
+  const confirmed = globalThis.confirm(
+    `${getMaintenanceText("clearAllConfirmTitle")}\n\n${getMaintenanceText("clearAllConfirmMessage")}`,
+  )
+  if (!confirmed) {
+    return
+  }
+
+  maintenanceBusyKey.value = "clear-all"
+
+  try {
+    const payload = await clearAllUsageLogs()
+    noticeStore.success(
+      getMaintenanceText("clearAllSuccess", {
+        count: payload.deletedCount,
+      }),
+    )
+    await queryClient.invalidateQueries({
+      queryKey: ["admin"],
+    })
+  } catch (error) {
+    noticeStore.error(
+      getErrorMessage(error, getMaintenanceText("clearCurrentFailed")),
+    )
+  } finally {
+    maintenanceBusyKey.value = ""
+  }
+}
 </script>
 
 <template>
@@ -362,6 +486,25 @@ async function clearAuthApiKey(): Promise<void> {
               <span class="settings-switch-slider" />
             </span>
           </label>
+          <div class="settings-security-actions">
+            <button
+              type="button"
+              class="btn settings-inline-btn btn-sm"
+              :disabled="maintenanceBusyKey !== ''"
+              @click="handleClearUsageLogs"
+            >
+              {{ getMaintenanceText("clearCurrent") }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger settings-inline-btn btn-sm"
+              :disabled="maintenanceBusyKey !== ''"
+              @click="handleClearAllUsageLogs"
+            >
+              {{ getMaintenanceText("clearAll") }}
+            </button>
+          </div>
+          <p class="hint">{{ getMaintenanceText("hint") }}</p>
         </div>
 
         <div class="settings-section settings-context-section">
