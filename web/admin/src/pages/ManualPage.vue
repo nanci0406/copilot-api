@@ -2,7 +2,7 @@
 import { computed } from "vue"
 import { useI18n } from "vue-i18n"
 
-const { locale, t } = useI18n()
+const { locale } = useI18n()
 
 const manualZhHtml = `<section class="manual-section">
   <div class="manual-section-title">1. 每个端点可用模型</div>
@@ -81,6 +81,16 @@ const manualEnHtml = `<section class="manual-section">
 const manualHtml = computed(() =>
   locale.value === "zh" ? manualZhHtml : manualEnHtml,
 )
+
+const manualTitle = computed(() =>
+  locale.value === "zh" ? "\u4f7f\u7528\u624b\u518c" : "User Manual",
+)
+
+const manualSubtitle = computed(() =>
+  locale.value === "zh" ?
+      "\u7aef\u70b9\u6620\u5c04 + \u8de8\u9879\u76ee\u63a5\u5165"
+    : "Endpoint mapping + cross-project integration",
+)
 </script>
 
 <template>
@@ -88,8 +98,8 @@ const manualHtml = computed(() =>
     <div class="card">
       <div class="card-header">
         <div class="settings-header-main">
-          <span class="card-title">{{ t("manual.title") }}</span>
-          <p class="settings-subtitle">{{ t("manual.subtitle") }}</p>
+          <span class="card-title">{{ manualTitle }}</span>
+          <p class="settings-subtitle">{{ manualSubtitle }}</p>
         </div>
       </div>
       <article class="manual-doc" v-html="manualHtml" />

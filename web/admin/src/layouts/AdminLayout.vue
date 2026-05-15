@@ -38,6 +38,10 @@ const activeAccount = computed(() =>
   accountsQuery.data.value?.accounts.find((account) => account.isActive),
 )
 
+const zhLanguageOptionLabel = computed(() =>
+  locale.value === "zh" ? "\u7b80\u4f53\u4e2d\u6587" : "Simplified Chinese",
+)
+
 function formatAccountType(accountType: AccountType): string {
   if (accountType === "business") {
     return t("accounts.accountTypeBusiness")
@@ -144,7 +148,7 @@ async function handleLogout(): Promise<void> {
             @change="preferencesStore.setLocale(($event.target as HTMLSelectElement).value as 'zh' | 'en')"
           >
             <option value="en">English</option>
-            <option value="zh">简体中文</option>
+            <option value="zh">{{ zhLanguageOptionLabel }}</option>
           </select>
         </div>
 

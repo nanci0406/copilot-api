@@ -3,7 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query"
 import { computed, ref } from "vue"
 import { useI18n } from "vue-i18n"
 
-import { fetchModelMappings, saveModelMapping, deleteModelMapping } from "@/api/mappings"
+import {
+  deleteModelMapping,
+  fetchModelMappings,
+  saveModelMapping,
+} from "@/api/mappings"
 import { fetchAdminModels, fetchPremiumConfig } from "@/api/models"
 import { fetchAdminSettings } from "@/api/settings"
 import { adminQueryKeys } from "@/query/keys"
@@ -18,14 +22,17 @@ const mappingsQuery = useQuery({
   queryKey: adminQueryKeys.mappings,
   queryFn: fetchModelMappings,
 })
+
 const modelsQuery = useQuery({
   queryKey: adminQueryKeys.models,
   queryFn: fetchAdminModels,
 })
+
 const premiumQuery = useQuery({
   queryKey: adminQueryKeys.premiumConfig,
   queryFn: fetchPremiumConfig,
 })
+
 const settingsQuery = useQuery({
   queryKey: adminQueryKeys.settings,
   queryFn: fetchAdminSettings,
@@ -37,7 +44,8 @@ const targetModel = ref("")
 
 const availableModels = computed(() => {
   const hiddenModels = new Set(premiumQuery.data.value?.hiddenModels ?? [])
-  const disableHiddenModels = settingsQuery.data.value?.disableHiddenModels ?? false
+  const disableHiddenModels =
+    settingsQuery.data.value?.disableHiddenModels ?? false
 
   return (modelsQuery.data.value?.data ?? []).filter((model) => {
     if (!disableHiddenModels) {
@@ -47,6 +55,18 @@ const availableModels = computed(() => {
     return !hiddenModels.has(model.id)
   })
 })
+
+const targetModelSelectDisabled = computed(() =>
+  modelsQuery.isLoading.value
+  || premiumQuery.isLoading.value
+  || settingsQuery.isLoading.value,
+)
+
+const targetModelOptionText = computed(() =>
+  targetModelSelectDisabled.value ?
+      t("mappings.loadingModels")
+    : t("mappings.selectTarget"),
+)
 
 const saveMutation = useMutation({
   mutationFn: async () =>
@@ -113,12 +133,12 @@ function openMappingForm(): void {
 
 <template>
   <div id="tab-model-mappings" class="tab-content active">
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">{{ t("mappings.title") }}</span>
-          <button type="button" class="btn btn-primary btn-sm" @click="openMappingForm">
-            {{ t("mappings.add") }}
-          </button>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">{{ t("mappings.title") }}</span>
+        <button type="button" class="btn btn-primary btn-sm" @click="openMappingForm">
+          {{ t("mappings.add") }}
+        </button>
       </div>
 
       <div class="mapping-form" :class="{ active: formOpen }">
@@ -128,9 +148,13 @@ function openMappingForm(): void {
             class="select mapping-input-inline"
             :placeholder="t('mappings.fromPlaceholder')"
           >
-          <span class="mapping-arrow">→</span>
-          <select v-model="targetModel" class="select mapping-input-inline">
-            <option value="">{{ t("mappings.selectTarget") }}</option>
+          <span class="mapping-arrow" aria-hidden="true">&rarr;</span>
+          <select
+            v-model="targetModel"
+            class="select mapping-input-inline"
+            :disabled="targetModelSelectDisabled"
+          >
+            <option value="">{{ targetModelOptionText }}</option>
             <option v-for="model in availableModels" :key="model.id" :value="model.id">
               {{ model.id }}
             </option>
@@ -186,7 +210,11 @@ function openMappingForm(): void {
                   <button type="button" class="btn btn-sm" @click="copyMapping(from, to)">
                     {{ t("mappings.copy") }}
                   </button>
-                  <button type="button" class="btn btn-danger btn-sm" @click="removeMapping(from)">
+                  <button
+                    type="button"
+                    class="btn btn-danger btn-sm"
+                    @click="removeMapping(from)"
+                  >
                     {{ t("common.delete") }}
                   </button>
                 </div>
