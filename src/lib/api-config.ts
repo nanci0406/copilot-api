@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto"
-
 import { requestContext } from "./request-context"
 import { state } from "./state"
 
@@ -8,11 +7,11 @@ export const standardHeaders = () => ({
   accept: "application/json",
 })
 
-const COPILOT_VERSION = "0.35.0"
+const COPILOT_VERSION = "0.26.7"
 const EDITOR_PLUGIN_VERSION = `copilot-chat/${COPILOT_VERSION}`
 const USER_AGENT = `GitHubCopilotChat/${COPILOT_VERSION}`
 
-const COPILOT_API_VERSION = "2025-10-01"
+const COPILOT_API_VERSION = "2025-04-01"
 
 export const copilotBaseUrl = (context: {
   accountType: "individual" | "business" | "enterprise"
@@ -20,6 +19,7 @@ export const copilotBaseUrl = (context: {
   context.accountType === "individual" ?
     "https://api.githubcopilot.com"
   : `https://api.${context.accountType}.githubcopilot.com`
+
 export const copilotHeaders = (
   copilotToken: string,
   vision: boolean = false,
@@ -61,6 +61,7 @@ export const prepareSubagentHeaders = (
 }
 
 export const GITHUB_API_BASE_URL = "https://api.github.com"
+
 export const githubCopilotInternalHeaders = (githubToken: string) => ({
   ...standardHeaders(),
   authorization: `token ${githubToken}`,
@@ -75,6 +76,7 @@ export const githubRestHeaders = (githubToken: string) => ({
   ...standardHeaders(),
   authorization: `token ${githubToken}`,
   "user-agent": USER_AGENT,
+  "x-github-api-version": "2022-11-28",  // GitHub REST API 标准版本，不能用 Copilot 版本号
   "x-vscode-user-agent-library-version": "electron-fetch",
 })
 
